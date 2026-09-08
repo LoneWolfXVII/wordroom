@@ -1,7 +1,7 @@
 # Edge Functions
 
-Workstream 5. Five Deno functions: `create-room`, `join-room`, `get-puzzle`, `submit-guess`,
-`reveal`.
+Workstream 5. Six Deno functions: `create-room`, `join-room`, `leave-room`, `get-puzzle`,
+`submit-guess`, `reveal`.
 
 ## The rule these functions exist to enforce
 
@@ -53,7 +53,7 @@ requires a JWT regardless, so `*` is fine locally.
 ```bash
 supabase start
 pnpm seed:wordbank && supabase db reset   # word_bank must have rows
-supabase functions serve                  # all five on :54321/functions/v1/<name>
+supabase functions serve                  # all six on :54321/functions/v1/<name>
 ```
 
 Every endpoint is `POST` and needs a user access token. Get one the way the app does —
@@ -76,7 +76,7 @@ curl -s -X POST 'http://127.0.0.1:54321/functions/v1/create-room' \
 ```bash
 cd supabase/functions
 deno task check          # type check
-deno task test           # 61 unit tests
+deno task test           # 72 unit tests
 deno lint
 deno task build:guesses  # regenerate the guess lists from docs/wordlists
 ```
@@ -133,6 +133,37 @@ device is harmless.
 Errors: `room_not_found` (404), `room_archived` (409), `room_full` (409), `name_taken` (409),
 `already_joined` (409, when the account is in the room under a different name — names are locked, so
 there is no way to change it). Rate limit: 30 per hour per user.
+
+### `leave-room`
+
+```
+POST { roomId: uuid }
+ 200 { roomId, playerId, playerName, wasHost }
+```
+
+**Leaving is a hard leave.** The `players` row is deleted, and what hangs off it goes with it — that
+is the semantics, not a side effect:
+
+- `attempts.player_id` is `on delete cascade`, so the leaver's scores in this room are gone rather
+  than sitting on the leaderboard as a ghost;
+- `players_room_name_key` is a unique index, so the locked name is freed for someone else;
+- `enforce_room_capacity` counts rows, so the seat is genuinely free again;
+- `rooms_host_player_fk` is `on delete set null`, so a departing host leaves the room hostless
+  rather than taking it down. `wasHost` says that just happened.
+
+The alternative — a `left_at` flag — keeps a name nobody can reuse and a leaderboard entry for
+someone who is not here. It is not what "leave" means. Because this is irreversible, the client
+confirms it first, naming what is lost and what is freed.
+
+This cannot be done over REST: `authenticated` has no delete grant on `players`, deliberately. So it
+is a `service_role` function, and the membership check is doing the authorisation Postgres would
+otherwise do. A caller with no seat in the room and a caller naming a room that does not exist both
+get `not_a_member`, so room ids cannot be probed.
+
+Rejoining afterwards is a normal `join-room`, and the name is available again — to them or to
+anyone else.
+
+Errors: `not_a_member` (403). Rate limit: 20 per hour per user.
 
 ### `get-puzzle`
 

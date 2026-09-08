@@ -42,7 +42,7 @@
     "indentWidth": 2
   },
   "tasks": {
-    "check": "deno check _shared/*.ts _shared/guess-list/index.ts _tests/*.ts create-room/index.ts join-room/index.ts get-puzzle/index.ts submit-guess/index.ts reveal/index.ts",
+    "check": "deno check _shared/*.ts _shared/guess-list/index.ts _tests/*.ts create-room/index.ts join-room/index.ts get-puzzle/index.ts submit-guess/index.ts reveal/index.ts leave-room/index.ts leave-room/leave.ts",
     "test": "deno test --allow-read _tests/",
     "build:guesses": "deno run --allow-read --allow-write _shared/guess-list/build.ts"
   }
