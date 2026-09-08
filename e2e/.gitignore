@@ -1,4 +1,7 @@
-# Playwright output: traces, videos, the HTML report, and the log of rooms a
-# run created on the live project.
+# Playwright output: traces, videos and the HTML report. Emptied on every run.
 .artifacts/
 .report/
+
+# Cached anonymous sessions and the log of rooms a run created on the live
+# project. Outside .artifacts so a run does not delete them; never committed.
+.cache/

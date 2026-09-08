@@ -1,10 +1,10 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { test as base } from '@playwright/test'
-import { ApiUser, discoverAnswer, type Room } from './api'
+import { type ApiUser, discoverAnswer, EdgeError, type Room } from './api'
 import { hideDevOverlay, signInAs } from './app'
 import { isSupabaseConfigured } from './env'
-import { SessionVault } from './sessions'
+import { apiUserFor, SessionVault } from './sessions'
 import { WireLog } from './wire'
 
 /**
@@ -16,13 +16,15 @@ import { WireLog } from './wire'
  */
 export const ROOM_PREFIX = 'E2E'
 
-const ARTIFACTS = path.resolve(import.meta.dirname, '../.artifacts')
-const ROOM_LOG = path.join(ARTIFACTS, 'created-rooms.log')
+// Playwright empties `.artifacts` on every run; this log has to outlive that,
+// because it is the record of what a run left behind on a live project.
+const CACHE_DIR = path.resolve(import.meta.dirname, '../.cache')
+const ROOM_LOG = path.join(CACHE_DIR, 'created-rooms.log')
 
 /** Append the room to a local log so a run's leftovers are always knowable. */
 function recordRoom(room: Room): void {
   try {
-    mkdirSync(ARTIFACTS, { recursive: true })
+    mkdirSync(CACHE_DIR, { recursive: true })
     appendFileSync(ROOM_LOG, `${new Date().toISOString()}\t${room.code}\t${room.name}\n`)
   } catch {
     // A log that cannot be written must not fail a test.
@@ -49,26 +51,41 @@ export class Probe {
   private roomsCreated = 0
 
   /** Rolls over before it reaches create-room's limit of 10 per hour. */
-  private async hostUser(): Promise<ApiUser> {
-    if (this.host === null || this.roomsCreated >= 8) {
-      this.host = await ApiUser.signUp()
+  private async hostUser(fresh = false): Promise<ApiUser> {
+    if (fresh || this.host === null || this.roomsCreated >= 8) {
+      this.host = await apiUserFor('host', fresh)
       this.roomsCreated = 0
     }
     return this.host
   }
 
   private async rivalUser(): Promise<ApiUser> {
-    this.rival ??= await ApiUser.signUp()
+    this.rival ??= await apiUserFor('rival')
     return this.rival
   }
 
-  /** Create a test room out of band and return it with its host account. */
+  /**
+   * Create a test room out of band and return it with its host account.
+   *
+   * The cached host account persists between runs, so its ten-rooms-per-hour
+   * budget can already be spent when a run starts. That is the one case worth
+   * spending a fresh anonymous sign-in on.
+   */
   async createRoom(label: string): Promise<{ room: Room; user: ApiUser }> {
-    const user = await this.hostUser()
-    const { room } = await user.createRoom(testRoomName(label), 'Probe')
-    this.roomsCreated += 1
-    recordRoom(room)
-    return { room, user }
+    let user = await this.hostUser()
+    try {
+      const { room } = await user.createRoom(testRoomName(label), 'Probe')
+      this.roomsCreated += 1
+      recordRoom(room)
+      return { room, user }
+    } catch (error) {
+      if (!(error instanceof EdgeError) || error.code !== 'rate_limited') throw error
+      user = await this.hostUser(true)
+      const { room } = await user.createRoom(testRoomName(label), 'Probe')
+      this.roomsCreated += 1
+      recordRoom(room)
+      return { room, user }
+    }
   }
 
   /**

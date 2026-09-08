@@ -7,12 +7,13 @@ import { defineConfig, devices } from '@playwright/test'
 const PORT = Number(process.env.E2E_PORT ?? 3900)
 const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`
 
-// Every run talks to the real Supabase project — anonymous sign-ins, edge
-// functions and realtime all have per-user and per-IP budgets. Running the
-// specs in parallel burns through them and turns a green suite red for reasons
-// that have nothing to do with the app, so workers are capped rather than
-// scaled to the machine.
-const WORKERS = process.env.CI ? 1 : 2
+// One worker, everywhere.
+//
+// Every run talks to the real Supabase project, and anonymous sign-ins are
+// capped per IP per hour. Workers do not share the account pool in memory, so
+// two of them starting at once both miss the cache and both spend a sign-in on
+// the same role. Wall-clock is the cheaper thing to give up.
+const WORKERS = 1
 
 export default defineConfig({
   testDir: './e2e',

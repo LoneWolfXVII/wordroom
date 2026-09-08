@@ -73,11 +73,35 @@ export class EdgeError extends Error {
  * Anonymous sign-ins are rate limited per IP on a real project, so users are
  * shared as widely as a test allows — see the `probe` worker fixture.
  */
+export interface AuthSession {
+  access_token: string
+  refresh_token: string
+  /** Unix seconds. */
+  expires_at?: number
+  user?: { id?: string }
+}
+
 export class ApiUser {
-  private constructor(
-    readonly accessToken: string,
-    readonly userId: string,
-  ) {}
+  private constructor(private session: AuthSession) {}
+
+  get accessToken(): string {
+    return this.session.access_token
+  }
+
+  get userId(): string {
+    return this.session.user?.id ?? ''
+  }
+
+  /** The session as the auth endpoint returned it, for the on-disk cache. */
+  serialise(): string {
+    return JSON.stringify(this.session)
+  }
+
+  static fromSession(raw: string): ApiUser {
+    const session = JSON.parse(raw) as AuthSession
+    if (!session.access_token) throw new Error('Cached session has no access token')
+    return new ApiUser(session)
+  }
 
   static async signUp(): Promise<ApiUser> {
     const env = requireSupabaseEnv()
@@ -86,18 +110,48 @@ export class ApiUser {
       headers: { apikey: env.anonKey, 'content-type': 'application/json' },
       body: '{}',
     })
-    const body = (await res.json()) as { access_token?: string; user?: { id?: string } }
+    const body = (await res.json()) as AuthSession
     if (!body.access_token) {
       throw new Error(
-        `Anonymous sign-up failed (${res.status}). If this says "rate limit", the ` +
-          "project's anonymous sign-in budget for this IP is spent — wait an hour. " +
+        `Anonymous sign-up failed (${res.status}). A 429 here is the project's ` +
+          'anonymous sign-in budget for this IP; it refills on the hour, and a ' +
+          'cached e2e/.artifacts/sessions.json avoids spending it again. ' +
           JSON.stringify(body).slice(0, 300),
       )
     }
-    return new ApiUser(body.access_token, body.user?.id ?? '')
+    return new ApiUser(body)
+  }
+
+  /**
+   * Swap an expired access token for a fresh one.
+   *
+   * The refresh endpoint has its own, far larger budget than anonymous
+   * sign-ins, which is what makes a cached session worth keeping between runs.
+   */
+  async refresh(): Promise<boolean> {
+    const env = requireSupabaseEnv()
+    if (!this.session.refresh_token) return false
+    const res = await fetch(`${env.url}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { apikey: env.anonKey, 'content-type': 'application/json' },
+      body: JSON.stringify({ refresh_token: this.session.refresh_token }),
+    })
+    if (!res.ok) return false
+    const body = (await res.json()) as AuthSession
+    if (!body.access_token) return false
+    this.session = body
+    return true
+  }
+
+  /** True when the access token has expired, or is about to. */
+  get isStale(): boolean {
+    const expiresAt = this.session.expires_at
+    if (expiresAt === undefined) return false
+    return expiresAt * 1000 - Date.now() < 60_000
   }
 
   async call<T>(fn: string, body: unknown): Promise<T> {
+    if (this.isStale) await this.refresh()
     const env = requireSupabaseEnv()
     const res = await fetch(`${env.url}/functions/v1/${fn}`, {
       method: 'POST',
