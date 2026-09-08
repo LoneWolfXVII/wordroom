@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { AppShell } from '@/components/ui/app-shell'
 import { Toaster } from '@/components/ui/toast'
+import { RoomsProvider } from '@/features/rooms'
 import { geist } from './fonts'
 import './globals.css'
 
@@ -20,8 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={geist.variable}>
       <body>
-        <AppShell>{children}</AppShell>
-        <Toaster />
+        <RoomsProvider>
+          <AppShell>{children}</AppShell>
+          <Toaster />
+        </RoomsProvider>
       </body>
     </html>
   )
