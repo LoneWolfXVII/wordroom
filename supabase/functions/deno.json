@@ -9,13 +9,13 @@
     "the deployed edge runtime is not guaranteed to honour."
   ],
   "imports": {
-    "@wordroom/shared": "./_vendor/shared/index.ts",
-    "./_vendor/shared/hard-mode.js": "./_vendor/shared/hard-mode.ts",
-    "./_vendor/shared/marks.js": "./_vendor/shared/marks.ts",
-    "./_vendor/shared/points.js": "./_vendor/shared/points.ts",
-    "./_vendor/shared/score.js": "./_vendor/shared/score.ts",
-    "./_vendor/shared/stats.js": "./_vendor/shared/stats.ts",
-    "./_vendor/shared/types.js": "./_vendor/shared/types.ts",
+    "@wordroom/shared": "../../packages/shared/src/index.ts",
+    "../../packages/shared/src/hard-mode.js": "../../packages/shared/src/hard-mode.ts",
+    "../../packages/shared/src/marks.js": "../../packages/shared/src/marks.ts",
+    "../../packages/shared/src/points.js": "../../packages/shared/src/points.ts",
+    "../../packages/shared/src/score.js": "../../packages/shared/src/score.ts",
+    "../../packages/shared/src/stats.js": "../../packages/shared/src/stats.ts",
+    "../../packages/shared/src/types.js": "../../packages/shared/src/types.ts",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.116.0",
     "zod": "npm:zod@4.5.4",
     "@std/assert": "jsr:@std/assert@^1.0.0"

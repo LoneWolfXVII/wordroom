@@ -24,6 +24,9 @@ supabase/seed.sql
 # Vendored at deploy time by supabase/scripts/deploy-functions.sh, never committed.
 supabase/functions/_vendor/
 supabase/functions/deno.deploy.json
+# vendor-shared.sh's copy of the real deno.json. Its presence means deno.json is
+# currently swapped to the _vendor/ paths — a state that must never be committed.
+supabase/functions/deno.json.vendor-backup
 
 # Generated guess dictionary seed; regenerate with seed-guess-bank.mjs.
 supabase/seed-guesses.sql
