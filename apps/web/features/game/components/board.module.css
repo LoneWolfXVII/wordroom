@@ -1,0 +1,148 @@
+/*
+ * Board and keyboard motion.
+ *
+ * globals.css says board-specific motion belongs to the game, so the flip,
+ * bounce, shake and board-swap keyframes live here rather than in the design
+ * system. Everything reads a token — no duration, easing or colour is written
+ * out twice.
+ *
+ * The reduced-motion fallback in globals.css collapses every duration below to
+ * 0.01ms. That is deliberate and must not be defeated: each animation is
+ * written so that its final frame is also its resting state, so collapsing it
+ * lands on the right pixels instead of on a half-played frame.
+ */
+
+/*
+ * Board metrics. The prototype drops the tile and key sizes under 660px tall so
+ * the game still fits one viewport at 360x640; scoping the override to the game
+ * root keeps it off the rest of the app.
+ */
+.game {
+  --tile-size: var(--size-tile);
+  --key-height: 54px;
+  --number-size: 24px;
+}
+
+@media (max-height: 660px) {
+  .game {
+    --tile-size: 48px;
+    --key-height: 46px;
+    --number-size: 22px;
+  }
+}
+
+/*
+ * The reveal.
+ *
+ * One animation instead of the prototype's "add .flip, then swap the colour
+ * class 300ms later" pair. The tile already carries its final colour, and the
+ * first half of the keyframe paints it as if it were still unrevealed; the swap
+ * happens at the midpoint, when the tile is edge-on and nothing is visible.
+ * Same picture, no timers, and it cannot desynchronise.
+ */
+@keyframes wr-flip {
+  0% {
+    transform: rotateX(0deg);
+    background: var(--color-surface);
+    border-color: var(--color-line-2);
+    color: var(--color-ink);
+  }
+  49.99% {
+    transform: rotateX(-90deg);
+    background: var(--color-surface);
+    border-color: var(--color-line-2);
+    color: var(--color-ink);
+  }
+  50% {
+    transform: rotateX(-90deg);
+    background: var(--mark);
+    border-color: transparent;
+    color: var(--color-on-tile);
+  }
+  100% {
+    transform: rotateX(0deg);
+    background: var(--mark);
+    border-color: transparent;
+    color: var(--color-on-tile);
+  }
+}
+
+/* `--mark` is set by the tile's mark class; `--flip-delay` is the 70ms stagger. */
+.flip {
+  animation: wr-flip var(--duration-reveal) var(--ease-out) both;
+  animation-delay: var(--flip-delay, 0ms);
+}
+
+@keyframes wr-bounce {
+  0% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-14px);
+  }
+  65% {
+    transform: translateY(3px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.bounce {
+  animation: wr-bounce 500ms var(--ease-spring) both;
+  animation-delay: var(--bounce-delay, 0ms);
+}
+
+@keyframes wr-shake {
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+.shake {
+  animation: wr-shake 300ms;
+}
+
+/*
+ * With motion reduced the shake is over before it is visible, so the rejected
+ * row says so with a ring instead. Present yellow, because it is the product's
+ * "look again" colour and the row has not been consumed.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .shake {
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 0 2px var(--color-present);
+  }
+}
+
+/* Next puzzle: the finished board leaves left, the new one arrives from the right. */
+@keyframes wr-slide-out {
+  to {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+
+@keyframes wr-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.slideOut {
+  animation: wr-slide-out var(--duration-struct) var(--ease-in) forwards;
+}
+
+.slideIn {
+  animation: wr-slide-in var(--duration-struct) var(--ease-out) forwards;
+}
