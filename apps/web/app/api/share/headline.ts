@@ -18,6 +18,14 @@ export interface CardInput {
   elapsedMs: number | null
   /** True on the letters card. Drives the link line. */
   withLetters: boolean
+  /**
+   * The host to print on the card, taken from the request that asked for the
+   * image. The card is rendered on the server, where there is no `window` to
+   * read, so a client-side default would always fall back to the production
+   * domain — and print a link nobody can reach from a preview or a
+   * `*.vercel.app` deploy.
+   */
+  host: string
 }
 
 /**

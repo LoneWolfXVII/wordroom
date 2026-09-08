@@ -9,7 +9,8 @@
     "start": "next start -p 3900",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:prod": "next dev -p 3900 --env-file ../../apps/web/.env.production.local"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "4.3.2",

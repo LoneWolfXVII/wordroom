@@ -45,6 +45,39 @@ If a change makes an answer easier to reach, it is wrong, however convenient.
 
 ---
 
+## Two databases, and which one you are talking to
+
+**Local development and tests use a local Supabase stack. Production is for
+players.** They are different databases and must stay that way — a test that
+creates rooms should never create them where real people are playing.
+
+```bash
+supabase start        # the local stack: Postgres, auth, PostgREST, realtime
+supabase db reset     # applies every migration, then both seeds
+pnpm dev              # apps/web on :3900, pointed at the local stack
+```
+
+`apps/web/.env.local` points at `http://127.0.0.1:54321`. Production credentials
+live in `apps/web/.env.production.local`, which is gitignored, and `pnpm dev:prod`
+is the only thing that reads them. Vercel has its own copy; nothing in the repo
+needs the production URL.
+
+Why this matters here specifically:
+
+- Anonymous sign-ins are capped at **30 per hour per IP** on the hosted project.
+  A test run used to exhaust it and then fail for a reason that looked nothing
+  like the cap. Locally there is no cap.
+- Test rooms cannot be deleted by the client — `rooms` grants `authenticated`
+  only `select` — so every run against production left rooms behind for good.
+- Migrations can be applied and rolled back freely against a local database.
+  Against production they cannot.
+
+`supabase db reset` is the reset button: it rebuilds from `supabase/migrations`
+and reseeds, so a wedged local database costs one command rather than an
+afternoon.
+
+---
+
 ## Never change production directly
 
 `main` deploys to Vercel automatically, but **the database and the Edge

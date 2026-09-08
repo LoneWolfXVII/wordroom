@@ -9,13 +9,34 @@
 
 ## Local
 
+**Development and tests use a local database. Production is for players.**
+
 ```bash
-pnpm seed:wordbank        # answers      -> supabase/seed.sql
+pnpm seed:wordbank                          # answers    -> supabase/seed.sql
 node supabase/scripts/seed-guess-bank.mjs   # dictionary -> supabase/seed-guesses.sql
-supabase start
-supabase db reset         # applies migrations, then seed.sql
-psql "$SUPABASE_DB_URL" -f supabase/seed-guesses.sql
+supabase start                              # Postgres, auth, PostgREST, realtime
+supabase db reset                           # migrations, then both seeds
+./supabase/scripts/serve-functions.sh       # the Edge Functions
+pnpm dev                                    # apps/web on :3900
 ```
+
+`config.toml` seeds both word tables and turns on anonymous sign-ins and manual
+linking, so local behaves like production. `apps/web/.env.local` points at
+`127.0.0.1:54321`; production credentials live in `.env.production.local` and
+only `pnpm dev:prod` reads them.
+
+`serve-functions.sh` is not optional. The Edge Runtime container mounts only
+`supabase/functions`, so the import of `packages/shared` cannot resolve from
+inside it and every function answers `BOOT_ERROR`. The script vendors the shared
+source for the length of the command, exactly as the deploy script does.
+
+Why bother, rather than pointing at the hosted project:
+
+- Anonymous sign-ins are capped at **30/hour/IP** there. A test run exhausted it
+  and then failed for a reason that looked nothing like the cap.
+- Test rooms cannot be removed by a client — `rooms` grants `authenticated` only
+  `select` — so every run left rooms behind permanently.
+- `supabase db reset` rebuilds from migrations in one command.
 
 Two word tables, and the difference matters:
 

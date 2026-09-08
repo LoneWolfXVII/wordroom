@@ -24,19 +24,14 @@ set -euo pipefail
 
 PROJECT_REF="${SUPABASE_PROJECT_REF:-cdrmvqvgwwuqxslygilq}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-FUNCTIONS="$ROOT/supabase/functions"
-VENDOR="$FUNCTIONS/_vendor/shared"
-DENO_JSON="$FUNCTIONS/deno.json"
-BACKUP="$FUNCTIONS/deno.json.deploy-backup"
-
 # The CLI ignores --import-map ("no longer supported") and always reads
-# deno.json, so we swap that file itself and put the original back afterwards.
-# The trap covers Ctrl-C and any failure mid-deploy.
+# deno.json, so the vendor helper swaps that file itself and puts the original
+# back afterwards. The trap covers Ctrl-C and any failure mid-deploy.
+# shellcheck source=./vendor-shared.sh
+. "$ROOT/supabase/scripts/vendor-shared.sh"
+
 cleanup() {
-  if [ -f "$BACKUP" ]; then
-    mv -f "$BACKUP" "$DENO_JSON"
-  fi
-  rm -rf "$FUNCTIONS/_vendor"
+  unvendor_shared "$ROOT"
 }
 trap cleanup EXIT
 
@@ -48,37 +43,7 @@ if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
 fi
 
 echo "==> vendoring @wordroom/shared for the bundler"
-rm -rf "$FUNCTIONS/_vendor"
-mkdir -p "$VENDOR"
-for f in "$ROOT"/packages/shared/src/*.ts; do
-  case "$f" in
-    *.test.ts) continue ;;   # tests are not part of the contract
-  esac
-  cp "$f" "$VENDOR/"
-done
-echo "    $(ls "$VENDOR" | wc -l | tr -d ' ') modules"
-
-echo "==> pointing deno.json at the vendored copy"
-cp "$DENO_JSON" "$BACKUP"
-node - "$DENO_JSON" <<'NODE'
-const { readFileSync, writeFileSync } = require('node:fs')
-
-const path = process.argv[2]
-const config = JSON.parse(readFileSync(path, 'utf8'))
-
-// Rewrite every ../../packages/shared/src/* specifier onto the vendored copy,
-// keeping the .js -> .ts remapping that lets Deno resolve TypeScript's
-// NodeNext-style specifiers. Everything else (npm:, jsr:) is passed through,
-// and the rest of the config — compilerOptions, lint, fmt — is untouched.
-const rewrite = (s) => s.replace('../../packages/shared/src/', './_vendor/shared/')
-const imports = {}
-for (const [key, value] of Object.entries(config.imports)) {
-  imports[rewrite(key)] = rewrite(value)
-}
-
-writeFileSync(path, `${JSON.stringify({ ...config, imports }, null, 2)}\n`)
-console.log(`    ${Object.keys(imports).length} entries remapped`)
-NODE
+vendor_shared "$ROOT"
 
 echo "==> deploying to $PROJECT_REF"
 cd "$ROOT"
