@@ -43,7 +43,7 @@ export const roomCodeSchema = z
   .string()
   .trim()
   .toUpperCase()
-  .regex(CODE_PATTERN, 'Room codes are 4 characters, A-Z and 2-9.')
+  .regex(CODE_PATTERN, 'Room codes are 4 letters.')
 
 /** An IANA zone the runtime actually knows; anything else would break the week boundary. */
 export const timezoneSchema = z
