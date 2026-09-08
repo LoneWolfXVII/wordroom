@@ -15,8 +15,12 @@
  *     emits as its own hashed chunk. Caching it is the one bit of game data this
  *     worker is allowed to hold, and CLAUDE.md says why — it is the spelling
  *     list, never the answer list.
- *   - `/icons/**`, `/og.png`, `/offline.html` — static artwork, precached so the
- *     offline page can actually render offline.
+ *   - `/offline.html` — precached on install, because a page shown when the
+ *     network is gone cannot be fetched when the network is gone. It is the only
+ *     precache: it draws its tile in CSS and needs no image, so nothing else has
+ *     to be in the cache before the first failure.
+ *   - `/icons/**` and `/og.png` — cached opportunistically, if and when
+ *     something asks for them.
  *
  * WHAT IT REFUSES TO CACHE
  *
@@ -42,8 +46,8 @@ const KEEP = [SHELL, ASSETS]
 
 const OFFLINE_URL = '/offline.html'
 
-/** Precached so the offline page can render without a single network request. */
-const PRECACHE = [OFFLINE_URL, '/icons/icon-192.png']
+/** The whole precache: one page, so installing costs one request. */
+const PRECACHE = [OFFLINE_URL]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
