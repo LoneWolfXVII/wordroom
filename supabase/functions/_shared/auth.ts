@@ -10,10 +10,9 @@
  * Skipping (2) would let any signed-in stranger read another room's puzzles.
  */
 
-import { createClient } from '@supabase/supabase-js'
 import type { AttemptRow, PlayerRow, PuzzleRow, ServiceClient } from './db.ts'
-import { supabaseUrl } from './db.ts'
 import { AppError, forbidden, notFound, unauthorized } from './errors.ts'
+import { verifyAccessToken } from './jwt.ts'
 
 export interface Caller {
   userId: string
@@ -29,25 +28,16 @@ export function bearerToken(req: Request): string {
 }
 
 /**
- * Verify the token against GoTrue rather than decoding it locally. A revoked or
- * expired session is rejected, which local signature checking would miss.
+ * Identify the caller from their access token.
+ *
+ * Verified locally against the project's published JWKS rather than by asking
+ * GoTrue — see `jwt.ts` for why, and for what that trade gives up. This is on
+ * the hot path of every guess.
  */
 export async function requireCaller(req: Request): Promise<Caller> {
   const token = bearerToken(req)
-  const apiKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!apiKey) {
-    console.error('missing SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY')
-    throw new AppError('internal', 500, 'Server is misconfigured.')
-  }
-
-  const auth = createClient(supabaseUrl(), apiKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-
-  const { data, error } = await auth.auth.getUser(token)
-  if (error || !data.user) throw unauthorized('Your session has expired. Reload and try again.')
-
-  return { userId: data.user.id, isAnonymous: data.user.is_anonymous === true }
+  const claims = await verifyAccessToken(token)
+  return { userId: claims.sub, isAnonymous: claims.is_anonymous === true }
 }
 
 /** The caller's player row in this room, or 403. */

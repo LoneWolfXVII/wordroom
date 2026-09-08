@@ -18,8 +18,13 @@ import {
 
 const NOW = '2026-09-08T12:00:00.000Z'
 
-const play = (guess: string, state: AttemptState, answer = 'crane') =>
-  playGuess({ answer, mode: 5, guess, state, now: NOW })
+/**
+ * The dictionary lives in `guess_bank` now, so whether a guess is a word is an
+ * input rather than something the engine looks up. These tests use real words,
+ * so the default is true; the not-a-word case passes false explicitly.
+ */
+const play = (guess: string, state: AttemptState, answer = 'crane', isRealWord = true) =>
+  playGuess({ answer, mode: 5, guess, state, isRealWord, now: NOW })
 
 Deno.test('scores a guess and advances the attempt', () => {
   const outcome = play('slate', emptyAttemptState(false))
@@ -68,7 +73,7 @@ Deno.test('is case and whitespace insensitive', () => {
 
 Deno.test('an invalid word is rejected and is not counted as a guess', () => {
   const state = emptyAttemptState(false)
-  const outcome = play('zzzzz', state)
+  const outcome = play('zzzzz', state, 'crane', false)
 
   assert(outcome.kind === 'rejected')
   assertEquals(outcome.code, 'not_a_word')

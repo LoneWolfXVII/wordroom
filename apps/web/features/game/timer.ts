@@ -22,6 +22,29 @@ export const URGENT_MS = 10_000
 /** How often the clock repaints. Fine enough for whole seconds, cheap enough to ignore. */
 export const TICK_MS = 250
 
+/**
+ * The least time between two attempts to report a timeout to the server.
+ *
+ * A timeout that fails — no connection, a 429, a cold function that dropped the
+ * request — puts the board back to `playing` with the clock still at zero,
+ * which is the exact state that asked for the timeout in the first place. With
+ * nothing between the two, the clock hook re-fired the request the moment the
+ * previous one failed: offline, that was a request and a toast every few
+ * milliseconds until the network came back. Three seconds is short enough that
+ * a recovered connection finishes the puzzle promptly and long enough that a
+ * dead one costs a toast every few seconds rather than a storm.
+ */
+export const TIMEOUT_RETRY_MS = 3_000
+
+/**
+ * How long to wait before (re)sending a timeout, given when the last one was
+ * sent. The first attempt is immediate; a retry waits out `TIMEOUT_RETRY_MS`.
+ */
+export function timeoutRetryDelayMs(lastAttemptAt: number | null, now: number): number {
+  if (lastAttemptAt === null) return 0
+  return Math.max(0, TIMEOUT_RETRY_MS - (now - lastAttemptAt))
+}
+
 export interface ClockInput {
   timerMode: TimerMode
   /** Seconds allowed per puzzle when `timerMode` is `per-puzzle`. */

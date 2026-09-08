@@ -10,10 +10,24 @@
 ## Local
 
 ```bash
-pnpm seed:wordbank        # docs/wordlists/wordlists.json -> supabase/seed.sql
+pnpm seed:wordbank        # answers      -> supabase/seed.sql
+node supabase/scripts/seed-guess-bank.mjs   # dictionary -> supabase/seed-guesses.sql
 supabase start
 supabase db reset         # applies migrations, then seed.sql
+psql "$SUPABASE_DB_URL" -f supabase/seed-guesses.sql
 ```
+
+Two word tables, and the difference matters:
+
+- `word_bank` — the **answers**. No client role may read it, ever.
+- `guess_bank` — the **dictionary** of ~47,000 typeable words, used by
+  `submit-guess` to reject letter soup. Not secret (the browser ships the same
+  list) but revoked from clients anyway, since they have their own copy.
+
+The dictionary used to be compiled into the function. It was the bulk of a
+1.7MB bundle, and every cold start paid to parse 47,000 words — the first guess
+after an idle period took ~5s against ~0.7s warm. Moving it into
+`guess_context` costs no extra round trip and brought cold starts to ~1s.
 
 ## Remote
 
@@ -22,6 +36,14 @@ supabase link --project-ref <ref>
 supabase db push
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
+
+## Applying any of this
+
+**Nothing here goes through git.** A migration run in the SQL editor and a
+function deploy both change the live system the moment they run — no branch, no
+review, no rollback. Migrations are applied by the operator, not automatically,
+and a schema change plus the code that needs it should ship together. See
+"Never change production directly" in `CLAUDE.md`.
 
 ## Deploying the edge functions
 

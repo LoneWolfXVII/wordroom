@@ -24,3 +24,6 @@ supabase/seed.sql
 # Vendored at deploy time by supabase/scripts/deploy-functions.sh, never committed.
 supabase/functions/_vendor/
 supabase/functions/deno.deploy.json
+
+# Generated guess dictionary seed; regenerate with seed-guess-bank.mjs.
+supabase/seed-guesses.sql

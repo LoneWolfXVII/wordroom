@@ -10,6 +10,16 @@ import { formatClock } from './timer'
  */
 
 /** Where a shared link points. The join screen reads the code out of the path. */
+/**
+ * The host a share link points at, when nothing better is known.
+ *
+ * Only a fallback. `shareLink` prefers the origin the page is actually being
+ * served from, because a link is worth nothing if it names a domain the reader
+ * cannot reach — a preview deploy, a vercel.app URL or localhost would all
+ * otherwise hand out links to a site that may not exist yet. This value is the
+ * intended production domain, used for server rendering and tests where there
+ * is no location to read.
+ */
 export const SHARE_HOST = 'wordroom.nischalgupta.dev'
 
 export interface ShareInput {
@@ -40,7 +50,13 @@ export function shareHeadline(input: ShareInput): string {
 }
 
 /** `wordroom.nischalgupta.dev/r/KHX7` — opens the join screen with the code filled in. */
-export function shareLink(roomCode: string, host: string = SHARE_HOST): string {
+/** The host this page is served from, or the fallback when there is no page. */
+export function currentShareHost(): string {
+  if (typeof window === 'undefined') return SHARE_HOST
+  return window.location.host || SHARE_HOST
+}
+
+export function shareLink(roomCode: string, host: string = currentShareHost()): string {
   return `${host}/r/${roomCode.toUpperCase()}`
 }
 

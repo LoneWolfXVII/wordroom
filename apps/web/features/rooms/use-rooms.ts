@@ -61,8 +61,21 @@ export function useActiveSeat(): {
     if (player) setActiveRoomId(player.roomId)
   }, [player])
 
+  // One object per (player, room), not one per render. The game route keys two
+  // effects on this — configuring the store and fetching the puzzle — and a
+  // fresh object every render re-ran both: the first `loadPuzzle` set the store
+  // to `loading`, that re-rendered the route, the new `seat` re-fired the
+  // effect, and every page load asked `get-puzzle` twice and re-read the
+  // resume state in between. React Query keeps `data` referentially stable
+  // across refetches that return the same rows, so memoising on the two rows
+  // is exactly "the seat changed".
+  const seat = useMemo(
+    () => (player && room.data ? { room: room.data, player } : null),
+    [player, room.data],
+  )
+
   return {
-    seat: player && room.data ? { room: room.data, player } : null,
+    seat,
     // `isPending` is false while a *refetch* runs over already-cached data, so
     // a screen that redirects on `!hasAnySeat` would fire on the stale empty
     // array in the window between locking a name and the invalidated seats

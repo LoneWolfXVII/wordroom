@@ -21,7 +21,6 @@ import {
   scoreGuess,
 } from '@wordroom/shared'
 import type { ErrorDetails } from './errors.ts'
-import { isRealWord } from './guess-list/index.ts'
 
 /** The parts of an attempt the rules care about. */
 export interface AttemptState {
@@ -78,6 +77,13 @@ export interface PlayGuessInput {
   mode: Mode
   guess: string
   state: AttemptState
+  /**
+   * Whether the guess is in the dictionary, decided by `guess_bank` in the same
+   * query that fetched the puzzle. `undefined` means nobody asked — the engine
+   * then trusts the caller, which is only correct where the word has already
+   * been checked, so every call site passes it.
+   */
+  isRealWord?: boolean
   /** ISO timestamp to stamp on the attempt if this guess ends it. */
   now: string
 }
@@ -105,7 +111,10 @@ export function playGuess(input: PlayGuessInput): GuessOutcome {
     return reject('wrong_length', `Enter a ${mode}-letter word.`, { mode })
   }
 
-  if (!isRealWord(guess, mode)) {
+  // The dictionary lookup happens in Postgres, alongside the reads this request
+  // already makes — see `guess_bank`. Compiling 47,000 words into the function
+  // instead cost every cold start about 344KB it usually did not need.
+  if (input.isRealWord === false) {
     return reject('not_a_word', 'Not in word list.')
   }
 

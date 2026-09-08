@@ -95,7 +95,12 @@ describe('shareHeadline', () => {
 
 describe('shareLink', () => {
   it('uppercases the room code', () => {
-    expect(shareLink('khx7')).toBe('wordroom.nischalgupta.dev/r/KHX7')
+    // No `window` under the node test environment, so this is the fallback.
+    expect(shareLink('khxb')).toBe('wordroom.nischalgupta.dev/r/KHXB')
+  })
+
+  it('prefers the host the page is served from, so a link is reachable', () => {
+    expect(shareLink('khxb', 'wordroom-kappa.vercel.app')).toBe('wordroom-kappa.vercel.app/r/KHXB')
   })
 })
 

@@ -18,9 +18,16 @@
  * `_shared/guess-engine.ts`. They are not reimplemented here.
  */
 
-import { findOwnAttempt, requireCaller, requirePuzzleAccess } from '../_shared/auth.ts'
-import { type AttemptRow, readSettings, type ServiceClient, serviceClient } from '../_shared/db.ts'
-import { conflict, mapPostgresError, unprocessable } from '../_shared/errors.ts'
+import { requireCaller } from '../_shared/auth.ts'
+import {
+  type AttemptRow,
+  type PlayerRow,
+  type PuzzleRow,
+  readSettings,
+  type ServiceClient,
+  serviceClient,
+} from '../_shared/db.ts'
+import { conflict, forbidden, mapPostgresError, unprocessable } from '../_shared/errors.ts'
 import {
   type AttemptState,
   emptyAttemptState,
@@ -128,16 +135,53 @@ async function persist(input: PersistInput): Promise<AttemptRow> {
   return data as AttemptRow
 }
 
+/**
+ * Puzzle, the caller's player row and their attempt — in one round trip.
+ *
+ * `guess_context` does the join in Postgres. No row means either the puzzle does
+ * not exist or the caller is not in its room, and the two are deliberately the
+ * same answer: a stranger should not be able to probe which puzzle ids exist.
+ */
+interface GuessContext {
+  puzzle: PuzzleRow
+  player: PlayerRow
+  attempt: AttemptRow | null
+  /** Null when the request carried no guess, i.e. a timeout. */
+  guess_is_word: boolean | null
+}
+
+async function loadGuessContext(
+  db: ServiceClient,
+  puzzleId: string,
+  userId: string,
+  guess: string | undefined,
+): Promise<GuessContext> {
+  const { data, error } = await db
+    .rpc('guess_context', { p_puzzle_id: puzzleId, p_user_id: userId, p_guess: guess ?? null })
+    .maybeSingle()
+
+  if (error) throw mapPostgresError(error)
+  if (!data) throw forbidden('not_a_member', 'You are not a player in this room.')
+
+  return data as GuessContext
+}
+
 serveFunction(async (req) => {
+  // Local signature check — no round trip. See `_shared/jwt.ts`.
   const caller = await requireCaller(req)
   const db = serviceClient()
-
-  await enforceRateLimit(db, 'submit-guess', caller.userId, SUBMIT_GUESS_LIMIT)
-
   const body = await readJson(req, submitGuessSchema)
-  const { puzzle, player } = await requirePuzzleAccess(db, body.puzzleId, caller.userId)
 
-  const attempt = await findOwnAttempt(db, puzzle.id, player.id)
+  // The rate limiter and the context read need nothing from each other, so they
+  // go together rather than one after the other. This function used to be six
+  // sequential round trips and a guess took about two seconds; the three reads
+  // that could be one query now are, and the two that remain overlap.
+  const [, context] = await Promise.all([
+    enforceRateLimit(db, 'submit-guess', caller.userId, SUBMIT_GUESS_LIMIT),
+    loadGuessContext(db, body.puzzleId, caller.userId, body.guess),
+  ])
+
+  const { puzzle, player, attempt } = context
   const settings = readSettings(player)
   const now = new Date()
   const nowIso = now.toISOString()
@@ -198,6 +242,7 @@ serveFunction(async (req) => {
     mode: puzzle.mode,
     guess: body.guess,
     state,
+    isRealWord: context.guess_is_word !== false,
     now: nowIso,
   })
 

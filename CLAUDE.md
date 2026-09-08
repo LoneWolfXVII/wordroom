@@ -20,7 +20,15 @@ revealed it. Everything below follows from that.
 - `puzzles.answer` and `rooms.seed` have **no column grant** for `anon` or
   `authenticated`. A `select *` on those tables fails for a client. Use the
   answer-free views: `room_details`, `room_puzzles`, `my_attempts`.
+- **`revoke all ... from public` is not enough.** Supabase's default privileges
+  grant to `anon` and `authenticated` *directly*, and a revoke from `public`
+  leaves those untouched. Always name the roles: `revoke ... from anon,
+  authenticated`. This was a real hole — `rate_limit_hit` stayed callable by any
+  signed-in player, who could burn another player's rate limit or wipe every
+  counter.
 - `word_bank` has no grant and no policy at all. Clients cannot read it, ever.
+  `guess_bank` is the separate, non-secret dictionary of typeable words — the
+  same list the browser ships. Never confuse the two.
 - Guesses are validated and scored in the `submit-guess` Edge Function, which
   returns **marks only** — `correct` / `present` / `absent` per tile.
 - The client's copy of the word list is the **guess** list, for spelling checks.
@@ -34,6 +42,31 @@ revealed it. Everything below follows from that.
   path), mark it `// answers-ok: <why>`.
 
 If a change makes an answer easier to reach, it is wrong, however convenient.
+
+---
+
+## Never change production directly
+
+`main` deploys to Vercel automatically, but **the database and the Edge
+Functions do not go through git at all**. A migration run in the SQL editor, or
+`deploy-functions.sh`, changes the live system immediately — no branch, no
+review, no rollback.
+
+So:
+
+- **Do not apply a migration or deploy a function without being asked to.**
+  Write the migration, commit it on the branch, and say it is waiting. The
+  operator applies it.
+- A schema change and the code that depends on it are **one deploy, not two**.
+  Dropping `guess_context(uuid, uuid)` to replace it with the three-argument
+  version broke `submit-guess` for the forty seconds until the redeploy landed.
+  Add the new thing, ship the code, then remove the old one.
+- Everything in a branch that has already been applied to production must say so
+  in the pull request, because merging it changes nothing — the repo is catching
+  up with the running system rather than the other way round.
+
+The one exception is an actively exploitable security hole, and even then: say
+what you are doing and why it could not wait.
 
 ---
 
@@ -169,7 +202,8 @@ pnpm test             # vitest
 pnpm lint             # biome check
 pnpm format           # biome check --write
 pnpm build            # next build
-pnpm seed:wordbank    # docs/wordlists/wordlists.json -> supabase/seed.sql
+pnpm seed:wordbank    # answers -> supabase/seed.sql
+node supabase/scripts/seed-guess-bank.mjs   # dictionary -> supabase/seed-guesses.sql
 
 SUPABASE_ACCESS_TOKEN=sbp_... ./supabase/scripts/deploy-functions.sh
 ```
