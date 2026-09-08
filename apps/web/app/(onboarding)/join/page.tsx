@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { Screen } from '@/components/ui'
 import { JoinRoomScreen } from '@/features/rooms'
 
-export const metadata: Metadata = { title: 'Join a room · Wordroom' }
+export const metadata: Metadata = { title: 'Join a room' }
 
 /**
  * `useSearchParams` opts a route into client rendering, and Next requires the

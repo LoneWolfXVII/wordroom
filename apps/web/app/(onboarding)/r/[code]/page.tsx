@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { normaliseCode } from '@/features/rooms'
 
 export const metadata: Metadata = {
-  title: 'Join a room · Wordroom',
+  title: 'Join a room',
   description: 'Someone invited you to play word puzzles with them.',
 }
 

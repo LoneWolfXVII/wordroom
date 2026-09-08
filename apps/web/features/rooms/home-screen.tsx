@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Button, Screen, ScreenFooter } from '@/components/ui'
+import { Button, Icon, Screen, ScreenFooter } from '@/components/ui'
+import { BackIcon } from '@/components/ui/icons'
 import { DemoTiles } from './demo-tiles'
 import { RulesSheet } from './rules-sheet'
 import { useActiveSeat } from './use-rooms'
@@ -36,7 +37,16 @@ export function HomeScreen() {
          */}
         {seat ? (
           <Button asChild variant="primary">
-            <Link href="/lobby">Back to {seat.room.name}</Link>
+            {/*
+             * The icon is not decoration. This sits above two buttons that are
+             * also a room and also a tap away, and without it the three read as
+             * one list of equal choices - the arrow is what says this one is a
+             * return rather than a start.
+             */}
+            <Link href="/lobby">
+              <Icon icon={BackIcon} size={18} />
+              Back to {seat.room.name}
+            </Link>
           </Button>
         ) : null}
         <Button asChild variant={seat ? 'default' : 'primary'}>
