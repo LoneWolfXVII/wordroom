@@ -22,6 +22,12 @@
   --color-on-accent: #f5f1ea;
   /* pressed state of a primary button */
   --color-accent-pressed: #264d51;
+  /*
+   * Destructive text. Not in the prototype's `:root`, but used inline there for
+   * "Leave room" and the name-taken help line. Tokenised so no component has to
+   * hardcode the hex.
+   */
+  --color-danger: #a24b3a;
 
   /* tiles + keyboard */
   --color-correct: #5b8c5a;
@@ -56,6 +62,39 @@
 
   /* Geist, wired up by next/font in app/layout.tsx */
   --font-sans: var(--font-geist), -apple-system, 'Segoe UI', Inter, sans-serif;
+
+  /*
+   * The one breakpoint the product has: at 820px the app gets a framed card and
+   * sheets become a fixed right panel. Spec v1, "Mobile-first layout".
+   */
+  --breakpoint-panel: 820px;
+
+  /* Reusable prototype keyframes. Board-specific motion belongs to the game. */
+  --animate-pop: pop var(--duration-micro) var(--ease-out);
+  --animate-up: up var(--duration-struct) var(--ease-out);
+
+  @keyframes pop {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.06);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 /*
@@ -120,6 +159,42 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/*
+ * Vendor overrides.
+ *
+ * Vaul and Sonner inject their own <style> elements at runtime. Those rules are
+ * UNLAYERED, so they beat anything Tailwind emits inside @layer utilities no
+ * matter how specific the utility is. These rules therefore live outside every
+ * layer and win on specificity (0,2,0 against their 0,1,0).
+ *
+ * Both ship 400-500ms motion; the design budget for structural motion is 350ms.
+ */
+[data-vaul-drawer].wr-sheet {
+  transition-duration: var(--duration-struct);
+  animation-duration: var(--duration-struct);
+  animation-timing-function: var(--ease-out);
+}
+
+[data-vaul-overlay].wr-scrim {
+  animation-duration: var(--duration-struct);
+}
+
+/* The prototype's `.handle`: 36x4, --line-2, no hover fade. */
+[data-vaul-handle].wr-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-line-2);
+  opacity: 1;
+}
+
+[data-sonner-toast].wr-toast {
+  transition:
+    transform var(--duration-struct) var(--ease-spring),
+    opacity var(--duration-struct),
+    height var(--duration-struct);
 }
 
 /* Motion answers an action; nothing here may be load-bearing. */
