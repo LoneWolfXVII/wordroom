@@ -45,11 +45,37 @@ export async function hideDevOverlay(page: Page): Promise<void> {
   })
 }
 
+/** The localStorage key the browser client keeps its session under. */
+export const AUTH_STORAGE_KEY = 'wordroom.auth'
+
+/**
+ * Start this page already signed in as an existing anonymous account.
+ *
+ * A real project allows only a handful of anonymous sign-ins per hour per IP,
+ * and the app signs in on first load — so a suite that gives every test a fresh
+ * browser also gives it a fresh account, and runs out. The value written here
+ * is one the app itself produced and Playwright captured, never a session shape
+ * assembled by hand.
+ */
+export async function signInAs(page: Page, session: string): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      window.localStorage.setItem(key as string, value as string)
+    },
+    [AUTH_STORAGE_KEY, session],
+  )
+}
+
 /** A second player: their own context, cookies and anonymous session. */
-export async function newPlayerPage(browser: Browser, viewport: ViewportSize | null): Promise<Page> {
+export async function newPlayerPage(
+  browser: Browser,
+  viewport: ViewportSize | null,
+  session?: string,
+): Promise<Page> {
   const context = await browser.newContext(viewport ? { viewport } : {})
   const page = await context.newPage()
   await hideDevOverlay(page)
+  if (session !== undefined) await signInAs(page, session)
   return page
 }
 
@@ -317,6 +343,26 @@ export async function warmRoutes(page: Page): Promise<void> {
   for (const route of ['/', '/create', '/join', '/lobby', '/game']) {
     await page.goto(route, { waitUntil: 'domcontentloaded' })
   }
+}
+
+/**
+ * The game screen must fit one viewport with nothing below the fold.
+ *
+ * Measured, not screenshotted: a screenshot would pass a page that scrolls by
+ * one pixel and fail one whose font rendered differently.
+ */
+export async function expectNoVerticalScroll(page: Page, where: string): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const root = document.scrollingElement
+    if (!root) return null
+    return { scrollHeight: root.scrollHeight, clientHeight: root.clientHeight }
+  })
+  expect(overflow, 'document.scrollingElement is missing').not.toBeNull()
+  const { scrollHeight = 0, clientHeight = 0 } = overflow ?? {}
+  expect(
+    scrollHeight,
+    `${where}: the game screen scrolls — ${scrollHeight}px of content in a ${clientHeight}px viewport`,
+  ).toBeLessThanOrEqual(clientHeight)
 }
 
 export function uniqueName(prefix: string): string {

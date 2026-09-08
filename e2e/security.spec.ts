@@ -1,4 +1,4 @@
-import { ApiUser, losingLadder } from './support/api'
+import { losingLadder } from './support/api'
 import {
   guessCount,
   joinRoom,
@@ -33,13 +33,11 @@ requiresSupabase()
 test('the answer never reaches a player who has not finished', async ({ page, probe, wire }) => {
   const { room, answer } = await probe.roomWithKnownAnswer('security')
 
-  await test.step('another player in the room solves this very puzzle', async () => {
-    const solver = await ApiUser.signUp()
-    await solver.joinRoom(room.code, uniqueName('Solver'))
-    const puzzle = await solver.getPuzzle(room.id, 5, 1)
-    const result = await solver.submitGuess(puzzle.id, answer)
-    expect(result.solved).toBe(true)
-  })
+  // A solved attempt's last guess *is* the answer, and it now sits in this
+  // room's `attempts.guesses`. That is the row the leaderboard's realtime
+  // subscription is watching.
+  await test.step('another player in the room solves this very puzzle', () =>
+    probe.solveAsRival(room, answer, uniqueName('Rival')))
 
   await joinRoom(page, room.code, uniqueName('Pal'))
   await startPlaying(page)
@@ -71,8 +69,10 @@ test('the answer never reaches a player who has not finished', async ({ page, pr
     })
 
     const hits = wire.find(answer)
-    expect(hits, `The answer reached the client before it was earned:\n${wire.describe(answer)}`)
-      .toHaveLength(0)
+    expect(
+      hits,
+      `The answer reached the client before it was earned:\n${wire.describe(answer)}`,
+    ).toHaveLength(0)
   })
 
   await test.step('and the check is not vacuous — finishing does deliver it', async () => {

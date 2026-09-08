@@ -40,7 +40,7 @@ export default defineConfig({
   projects: [
     {
       name: 'mobile',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 667 }, isMobile: false },
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 667 } },
       testIgnore: ['**/layout-small.spec.ts', '**/reduced-motion.spec.ts'],
     },
     {
@@ -61,13 +61,21 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 667 },
-        reducedMotion: 'reduce',
+        // Playwright takes this through contextOptions, not as a top-level
+        // option; set at the top level it is silently ignored. The spec asserts
+        // the media query matches so a config that stops working fails loudly.
+        contextOptions: { reducedMotion: 'reduce' },
       },
       testMatch: ['**/reduced-motion.spec.ts'],
     },
   ],
   webServer: {
-    command: `pnpm --filter @wordroom/web exec next dev -p ${PORT}`,
+    // CI serves the production build the workflow already made: `next dev`
+    // compiles a route on its first request, which makes the first test to
+    // reach a screen pay tens of seconds that have nothing to do with the app.
+    command: process.env.CI
+      ? `pnpm --filter @wordroom/web exec next start -p ${PORT}`
+      : `pnpm --filter @wordroom/web exec next dev -p ${PORT}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

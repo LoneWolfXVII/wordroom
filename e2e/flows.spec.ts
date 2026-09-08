@@ -19,6 +19,7 @@ requiresSupabase()
 
 test('a host creates a room and a friend is playing puzzle No. 1', async ({
   browser,
+  friendSession,
   page,
   probe,
 }) => {
@@ -34,7 +35,7 @@ test('a host creates a room and a friend is playing puzzle No. 1', async ({
   const code = await test.step('the host creates a room and the code appears in the lobby', () =>
     createRoom(page, roomName, hostName))
 
-  const friend = await newPlayerPage(browser, page.viewportSize())
+  const friend = await newPlayerPage(browser, page.viewportSize(), friendSession)
 
   try {
     await test.step('a second browser joins with that code and lands on puzzle No. 1', async () => {
@@ -83,9 +84,9 @@ test('a host creates a room and a friend is playing puzzle No. 1', async ({
 
       // Nobody waits: the friend is untouched, still on No. 1 with one guess.
       await expectPuzzleNumber(friend, 1)
-      await expect(friend.locator('main').locator('.bg-correct, .bg-present, .bg-absent')).toHaveCount(
-        5,
-      )
+      await expect(
+        friend.locator('main').locator('.bg-correct, .bg-present, .bg-absent'),
+      ).toHaveCount(5)
     })
   } finally {
     await friend.context().close()

@@ -56,6 +56,19 @@ test('solving shows the result sheet, and an invalid word costs nothing', async 
     await expect(sheet.getByRole('img', { name: 'Your grid for puzzle 1' })).toBeVisible()
     await expect(sheet.getByRole('button', { name: 'Next puzzle' })).toBeVisible()
   })
+
+  await test.step('the sheet holds focus and closes on Escape', async () => {
+    const sheet = page.getByRole('dialog')
+    for (let press = 0; press < 10; press += 1) {
+      await page.keyboard.press('Tab')
+      const inside = await sheet.evaluate((element) => element.contains(document.activeElement))
+      expect(inside, `focus escaped the result sheet after ${press + 1} tabs`).toBe(true)
+    }
+    // Below 820px the sheet has no visible close button, so Escape is the only
+    // way out for a keyboard.
+    await page.keyboard.press('Escape')
+    await expect(sheet).toBeHidden()
+  })
 })
 
 test('failing reveals the word on the board and in the sheet', async ({ page, probe }) => {

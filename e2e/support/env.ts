@@ -51,7 +51,8 @@ export function supabaseEnv(): SupabaseEnv | null {
 
   const fromFile = parseDotEnv(WEB_ENV_FILE)
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? fromFile.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? fromFile.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? fromFile.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   cached = url && anonKey ? { url: url.replace(/\/$/, ''), anonKey } : null
   return cached

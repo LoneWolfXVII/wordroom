@@ -2,8 +2,9 @@ import { appendFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { test as base } from '@playwright/test'
 import { ApiUser, discoverAnswer, type Room } from './api'
-import { hideDevOverlay } from './app'
+import { hideDevOverlay, signInAs } from './app'
 import { isSupabaseConfigured } from './env'
+import { SessionVault } from './sessions'
 import { WireLog } from './wire'
 
 /**
@@ -34,27 +35,36 @@ export function testRoomName(label: string): string {
 }
 
 /**
- * The out-of-band account, shared by every test in a worker.
+ * The out-of-band accounts, shared by every test in a worker.
  *
- * A real project rate limits anonymous sign-ins per IP and room creation per
- * user (10/hour). One account per worker keeps the suite well inside both; it
- * rolls over before it reaches the room limit rather than after.
+ * Two of them, and no more: `host` creates rooms and plays their first puzzle
+ * to the end so a test knows the answer, and `rival` exists purely so a *second*
+ * player can have solved a puzzle the browser player has not. They have to be
+ * different accounts — one attempt per player per puzzle — but they do not have
+ * to be new ones, and anonymous sign-ins are the scarcest thing in this suite.
  */
 export class Probe {
-  private user: ApiUser | null = null
+  private host: ApiUser | null = null
+  private rival: ApiUser | null = null
   private roomsCreated = 0
 
-  private async current(): Promise<ApiUser> {
-    if (this.user === null || this.roomsCreated >= 8) {
-      this.user = await ApiUser.signUp()
+  /** Rolls over before it reaches create-room's limit of 10 per hour. */
+  private async hostUser(): Promise<ApiUser> {
+    if (this.host === null || this.roomsCreated >= 8) {
+      this.host = await ApiUser.signUp()
       this.roomsCreated = 0
     }
-    return this.user
+    return this.host
+  }
+
+  private async rivalUser(): Promise<ApiUser> {
+    this.rival ??= await ApiUser.signUp()
+    return this.rival
   }
 
   /** Create a test room out of band and return it with its host account. */
   async createRoom(label: string): Promise<{ room: Room; user: ApiUser }> {
-    const user = await this.current()
+    const user = await this.hostUser()
     const { room } = await user.createRoom(testRoomName(label), 'Probe')
     this.roomsCreated += 1
     recordRoom(room)
@@ -77,25 +87,32 @@ export class Probe {
    * the test never had to see its id.
    */
   async answerFor(code: string, playerName: string): Promise<string> {
-    const user = await ApiUser.signUp()
+    const user = await this.hostUser()
     const { room } = await user.joinRoom(code, playerName)
     const puzzle = await user.getPuzzle(room.id, 5, 1)
     return discoverAnswer(user, puzzle.id)
   }
 
-  /** Note a UI-created room so cleanup can find it too. */
-  note(room: Room): void {
-    recordRoom(room)
+  /** Have a second player solve a puzzle the browser player has not. */
+  async solveAsRival(room: Room, answer: string, playerName: string): Promise<void> {
+    const user = await this.rivalUser()
+    await user.joinRoom(room.code, playerName)
+    const puzzle = await user.getPuzzle(room.id, 5, 1)
+    const result = await user.submitGuess(puzzle.id, answer)
+    if (!result.solved) throw new Error('The rival failed to solve with the known answer')
   }
 }
 
 interface WorkerFixtures {
   probe: Probe
+  vault: SessionVault
 }
 
 interface TestFixtures {
   /** Every response body and websocket frame this page received. */
   wire: WireLog
+  /** A signed-in session for a *second* player in the same room. */
+  friendSession: string
 }
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
@@ -107,9 +124,22 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     { scope: 'worker' },
   ],
 
-  page: async ({ page }, use) => {
+  vault: [
+    // biome-ignore lint/correctness/noEmptyPattern: Playwright's fixture signature.
+    async ({}, use) => {
+      await use(new SessionVault())
+    },
+    { scope: 'worker' },
+  ],
+
+  page: async ({ page, browser, baseURL, vault }, use) => {
     await hideDevOverlay(page)
+    await signInAs(page, await vault.get('player', browser, baseURL ?? ''))
     await use(page)
+  },
+
+  friendSession: async ({ browser, baseURL, vault }, use) => {
+    await use(await vault.get('friend', browser, baseURL ?? ''))
   },
 
   wire: async ({ page, baseURL }, use) => {
