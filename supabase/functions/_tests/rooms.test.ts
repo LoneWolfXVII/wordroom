@@ -41,25 +41,25 @@ Deno.test('code generation covers the alphabet rather than favouring a corner', 
 })
 
 Deno.test('codes are read back case-insensitively', () => {
-  assertEquals(normaliseCode(' khx7 '), 'KHX7')
-  assert(isValidCode('khx7'))
+  assertEquals(normaliseCode(' khxq '), 'KHXQ')
+  assert(isValidCode('khxq'))
   assert(!isValidCode('KHXO'))
   assert(!isValidCode('KHX'))
 })
 
 Deno.test('join-room accepts a lowercase code and normalises it', () => {
-  const parsed = joinRoomSchema.parse({ code: ' khx7 ', playerName: ' Sam ' })
-  assertEquals(parsed.code, 'KHX7')
+  const parsed = joinRoomSchema.parse({ code: ' khxq ', playerName: ' Sam ' })
+  assertEquals(parsed.code, 'KHXQ')
   assertEquals(parsed.playerName, 'Sam')
 })
 
 Deno.test('names are bounded the way the players_name_length constraint is', () => {
-  assert(joinRoomSchema.safeParse({ code: 'KHX7', playerName: 'a'.repeat(20) }).success)
-  assert(!joinRoomSchema.safeParse({ code: 'KHX7', playerName: 'a'.repeat(21) }).success)
-  assert(!joinRoomSchema.safeParse({ code: 'KHX7', playerName: '   ' }).success)
+  assert(joinRoomSchema.safeParse({ code: 'KHXQ', playerName: 'a'.repeat(20) }).success)
+  assert(!joinRoomSchema.safeParse({ code: 'KHXQ', playerName: 'a'.repeat(21) }).success)
+  assert(!joinRoomSchema.safeParse({ code: 'KHXQ', playerName: '   ' }).success)
   // Control and format characters would render as an invisible or spoofed name.
-  assert(!joinRoomSchema.safeParse({ code: 'KHX7', playerName: 'Sam\u0000' }).success)
-  assert(!joinRoomSchema.safeParse({ code: 'KHX7', playerName: 'Sam\u202e' }).success)
+  assert(!joinRoomSchema.safeParse({ code: 'KHXQ', playerName: 'Sam\u0000' }).success)
+  assert(!joinRoomSchema.safeParse({ code: 'KHXQ', playerName: 'Sam\u202e' }).success)
 })
 
 Deno.test('create-room validates the timezone it will store on the room', () => {
@@ -135,4 +135,31 @@ Deno.test('an unrecognised failure becomes a plain 500 with no schema detail in 
   assertEquals(mapped.code, 'internal')
   assertEquals(mapped.status, 500)
   assert(!mapped.message.includes('answer'))
+})
+
+Deno.test('the code pattern is the alphabet, so a digit no room can have is refused', () => {
+  // 20260908002000_letters_only_codes.sql made codes letters-only. The pattern
+  // here once still allowed 2-9, so join-room accepted a code that could not
+  // exist and answered "no room has that code" instead of "that is not a code".
+  assert(!isValidCode('KHX7'))
+  assert(!isValidCode('2345'))
+  assert(!joinRoomSchema.safeParse({ code: 'KHX7', playerName: 'Sam' }).success)
+  assert(isValidCode('KHXQ'))
+})
+
+Deno.test('code generation is unbiased across the alphabet', () => {
+  // 256 is not a multiple of 24, so `byte % 24` favours the first 16 letters by
+  // a tenth. Rejection sampling makes every letter equally likely; with 48,000
+  // draws each letter should land within a few percent of its share.
+  const counts = new Map<string, number>()
+  for (let i = 0; i < 12_000; i++) {
+    for (const character of generateRoomCode()) {
+      counts.set(character, (counts.get(character) ?? 0) + 1)
+    }
+  }
+  const expected = 48_000 / CODE_ALPHABET.length
+  for (const character of CODE_ALPHABET) {
+    const count = counts.get(character) ?? 0
+    assert(Math.abs(count - expected) < expected * 0.08, `${character}: ${count} vs ${expected}`)
+  }
 })

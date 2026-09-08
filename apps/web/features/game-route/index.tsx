@@ -24,10 +24,17 @@ import { Button, Screen } from '@/components/ui'
 import { createEdgeGameApi, GameScreen, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
 import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
-import { applyPendingSettings, SettingsSheet } from '@/features/settings'
+import {
+  applyPendingSettings,
+  createSettingsSource,
+  SettingsSheet,
+  useSettingsConnection,
+  useSettingsStore,
+} from '@/features/settings'
 import { getBrowserClient, isSupabaseConfigured, supabaseEnv } from '@/lib/supabase'
 import { AccountSettingRow } from './account-row'
 import { resumePuzzleNumber } from './resume'
+import { bindSettingsToGame } from './settings-bridge'
 
 export function GameRoute() {
   const { seat, isLoading } = useActiveSeat()
@@ -55,13 +62,34 @@ export function GameRoute() {
     return createLeaderboardSource(getBrowserClient())
   }, [env])
 
+  /*
+   * Settings. The sheet edits workstream 4's store, which persists to
+   * `players.settings`; the game snapshots workstream 2's `pendingSettings`
+   * onto each new puzzle. Nothing connected either one: the store was never
+   * given a source or a player, so the sheet's toggles wrote nowhere, and the
+   * game only ever saw the settings on the seat it was configured with. A
+   * player could switch the timer on, get the "from next puzzle" toast, play
+   * on with no clock, and find both switches off again after a reload.
+   *
+   * The settings store is the one source of truth here. It is connected to the
+   * seat's player, forwarded into the game (`settings-bridge.ts`), and the first
+   * puzzle waits for its row to be read so the rules it starts under are the
+   * player's own rather than the defaults.
+   */
+  const settingsSource = useMemo(
+    () => (env ? createSettingsSource(getBrowserClient()) : null),
+    [env],
+  )
+  useSettingsConnection(settingsSource, seat?.player.id ?? null)
+  const settingsReady = useSettingsStore((s) => s.ready)
+  useEffect(() => bindSettingsToGame(), [])
+
   useEffect(() => {
     if (!seat || !env) return
 
     const supabase = getBrowserClient()
     configure({
       room: { id: seat.room.id, name: seat.room.name, code: seat.room.code },
-      settings: seat.player.settings,
       api: createEdgeGameApi({
         functionsUrl: `${env.url.replace(/\/$/, '')}/functions/v1`,
         anonKey: env.anonKey,
@@ -80,8 +108,9 @@ export function GameRoute() {
   }, [puzzle])
 
   // Open the puzzle this player is up to, with the board they left. See `resume.ts`.
+  // Waits for the player's settings, because `loadPuzzle` snapshots them.
   useEffect(() => {
-    if (!seat || !env || puzzle) return
+    if (!seat || !env || !settingsReady || puzzle) return
 
     let cancelled = false
     void (async () => {
@@ -92,7 +121,7 @@ export function GameRoute() {
     return () => {
       cancelled = true
     }
-  }, [seat, env, puzzle, mode, loadPuzzle])
+  }, [seat, env, settingsReady, puzzle, mode, loadPuzzle])
 
   const { delta } = useRankDelta({
     source: leaderboardSource,

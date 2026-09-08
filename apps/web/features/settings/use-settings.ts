@@ -35,6 +35,18 @@ interface SettingsState {
 let source: SettingsSource | null = null
 let playerId: string | null = null
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+/** The write the debounce is holding, so a reconnect can flush it rather than drop it. */
+let pendingSave: (() => void) | null = null
+/** Bumped by every `connect`, so a slow load for a previous player is ignored. */
+let connectToken = 0
+
+function flushPendingSave(): void {
+  if (saveTimer !== null) clearTimeout(saveTimer)
+  saveTimer = null
+  const save = pendingSave
+  pendingSave = null
+  save?.()
+}
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   settings: { ...DEFAULT_PLAYER_SETTINGS },
@@ -43,15 +55,24 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   saving: false,
 
   async connect(nextSource, nextPlayerId) {
+    const token = ++connectToken
+    // An edit still inside its debounce belongs to the player who made it.
+    // Write it now, before the module-level target moves to someone else.
+    flushPendingSave()
     source = nextSource
     playerId = nextPlayerId
+    // Until this player's row has been read the store holds someone else's
+    // settings, or the defaults. Neither may be taken for theirs.
+    set({ ready: false })
     if (nextSource === null || nextPlayerId === null) return
 
     try {
       const loaded = await nextSource.load(nextPlayerId)
+      if (token !== connectToken) return
       // Loading is also the start of a session, so nothing is pending yet.
       set({ settings: loaded, active: { ...loaded }, ready: true })
     } catch {
+      if (token !== connectToken) return
       set({ ready: true })
       toast.error('Could not load your settings')
     }
@@ -71,21 +92,27 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
     if (source === null || playerId === null) return
     if (saveTimer !== null) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
-      saveTimer = null
-      const currentSource = source
-      const currentPlayer = playerId
-      if (currentSource === null || currentPlayer === null) return
 
+    // Captured now, not read when the timer fires: by then `source`, `playerId`
+    // and `settings` may all belong to a different seat.
+    const saveSource = source
+    const savePlayer = playerId
+    pendingSave = () => {
       set({ saving: true })
-      void currentSource
-        .save(currentPlayer, get().settings)
+      void saveSource
+        .save(savePlayer, next)
         .catch(() => {
           // The local value stands; the next edit retries the write. Losing a
           // preference is worth a toast, not a reverted control under the thumb.
           toast.error('Could not save your settings')
         })
         .finally(() => set({ saving: false }))
+    }
+    saveTimer = setTimeout(() => {
+      saveTimer = null
+      const save = pendingSave
+      pendingSave = null
+      save?.()
     }, SAVE_DEBOUNCE_MS)
   },
 
@@ -96,6 +123,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   reset() {
     if (saveTimer !== null) clearTimeout(saveTimer)
     saveTimer = null
+    pendingSave = null
+    connectToken += 1
     source = null
     playerId = null
     set({
