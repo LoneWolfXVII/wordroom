@@ -101,6 +101,7 @@ jobs:
         run: |
           hits=$(grep -rn --include='*.ts' --include='*.tsx' --include='*.mts' \
                    --include='*.cts' --include='*.js' --include='*.jsx' --include='*.mjs' \
+                   --exclude-dir=.next --exclude-dir=node_modules \\
                    -E "\\.answer\\b" apps/web | grep -v 'answers-ok:' || true)
           if [ -n "$hits" ]; then
             echo "$hits"
