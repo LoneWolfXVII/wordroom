@@ -41,7 +41,12 @@ export function GameRoute() {
   const status = useGameStore((s) => s.status)
   const reset = useGameStore((s) => s.reset)
 
-  const env = isSupabaseConfigured() ? supabaseEnv() : null
+  // `supabaseEnv()` builds a fresh object on every call, so reading it during
+  // render gave `env` a new identity each time — which recreated the
+  // leaderboard source below, which changed the query's inputs, which rendered
+  // again. The leaderboard refetched in a loop, dozens of times a second. The
+  // values are build-time constants, so they are read exactly once.
+  const env = useMemo(() => (isSupabaseConfigured() ? supabaseEnv() : null), [])
 
   // One source per client, not one per render: the leaderboard subscribes on it.
   const leaderboardSource = useMemo(() => {
