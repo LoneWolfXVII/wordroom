@@ -63,8 +63,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AppShell>{children}</AppShell>
           <Toaster />
         </RoomsProvider>
-        {/* Installability and the offline page. All of it is in public/sw-register.js. */}
-        <script src="/sw-register.js" defer />
+        {/*
+         * Installability and the offline page. All of it is in
+         * public/sw-register.js, which reads `data-build` to name this
+         * deployment's caches — so a new build retires the old one instead of
+         * stacking on it.
+         */}
+        <script src="/sw-register.js" data-build={process.env.NEXT_PUBLIC_BUILD ?? 'dev'} defer />
       </body>
     </html>
   )

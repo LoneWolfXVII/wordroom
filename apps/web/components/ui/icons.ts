@@ -31,6 +31,7 @@ export {
   PlusSignIcon as PlusIcon,
   Share08Icon as ShareIcon,
   SlidersHorizontalIcon as SettingsIcon,
+  TextFontIcon as LettersIcon,
   Tick02Icon as TickIcon,
   Timer02Icon as TimerIcon,
   UserGroupIcon as PlayersIcon,

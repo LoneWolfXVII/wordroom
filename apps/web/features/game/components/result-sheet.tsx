@@ -3,7 +3,8 @@
 import { MAX_GUESSES, type ScoredGuess } from '@wordroom/shared'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
-import { Badge, Button, MiniGrid, Sheet, StatGrid, StatTile, toast } from '@/components/ui'
+import { Badge, Button, Icon, MiniGrid, Sheet, StatGrid, StatTile, toast } from '@/components/ui'
+import { LettersIcon } from '@/components/ui/icons'
 import {
   lettersShareWarning,
   type ShareInput,
@@ -156,11 +157,18 @@ export function ResultSheet({
                 Next puzzle
               </Button>
             </div>
+            {/*
+             * The icon is the half of the label that matters. This sits under
+             * a "Share" that does not spoil anything, and the only difference
+             * between them is whether the word goes out with the grid - so the
+             * letters say so before the sentence does.
+             */}
             <Button
               variant="ghost"
               className="mt-1 text-[13px]"
               onClick={() => setConfirmingLetters(true)}
             >
+              <Icon icon={LettersIcon} size={16} />
               Share with letters
             </Button>
           </>

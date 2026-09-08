@@ -5,6 +5,8 @@
  * Workstream 2 wants `useActiveSettings()` for the rules in force on the current
  * puzzle, and `applyPendingSettings()` once per puzzle as the next one loads.
  */
+
+export { BuildStamp } from './build-stamp'
 export {
   clampPerPuzzleSeconds,
   DEFAULT_PER_PUZZLE_SECONDS,

@@ -15,11 +15,40 @@
 ;(() => {
   if (!('serviceWorker' in navigator)) return
 
-  const register = () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
-      // No worker means no install prompt and no offline page. Everything else
-      // about the app is unaffected, so there is nothing to tell the player.
+  /*
+   * Never in development.
+   *
+   * The worker caches `/_next/static/**` first-hit-wins, which is safe in
+   * production because Next fingerprints those filenames by content: a new
+   * build asks for URLs no cache can already hold. `next dev` does not
+   * fingerprint them — it serves `webpack.js?v=...` and re-uses the same paths
+   * across rebuilds — so the cache answers a rebuilt page with the previous
+   * build's chunks and the app dies on a module graph that no longer matches
+   * itself. That is a white screen and a `TypeError` pointing at nothing, and
+   * it costs an hour to recognise the second time as much as the first.
+   */
+  const dev = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
+  if (dev) {
+    // Also undo it for anyone who already has one from before this guard.
+    navigator.serviceWorker.getRegistrations().then((all) => {
+      for (const one of all) void one.unregister()
     })
+    return
+  }
+
+  // Set by the root layout from the deployment's commit sha. It makes the
+  // worker URL change per build, which is what makes a deploy replace the
+  // worker rather than reuse it.
+  const build = document.querySelector('script[data-build]')?.dataset.build ?? 'dev'
+
+  const register = () => {
+    navigator.serviceWorker
+      .register(`/sw.js?v=${encodeURIComponent(build)}`, { scope: '/' })
+      .catch(() => {
+        // No worker means no install prompt and no offline page. Everything
+        // else about the app is unaffected, so there is nothing to tell the
+        // player.
+      })
   }
 
   const whenIdle = () => {
