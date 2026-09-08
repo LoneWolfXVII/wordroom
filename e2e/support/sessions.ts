@@ -1,31 +1,41 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { Browser } from '@playwright/test'
 import { ApiUser } from './api'
-import { AUTH_STORAGE_KEY, hideDevOverlay } from './app'
 
 /**
  * A small pool of named anonymous accounts, reused everywhere.
  *
- * A live Supabase project caps anonymous sign-ins at a few dozen per hour per
- * IP, and the app signs in on first load — so one browser context is one
- * account, and a suite that hands every test a clean context spends the whole
- * budget in about twenty tests and then fails for reasons that have nothing to
- * do with the app. That is not a hypothetical; it is what happened.
+ * **The constraint this exists for.** A live Supabase project allows 30
+ * anonymous sign-ins per hour per IP — measured, not guessed: the 31st returns
+ * `429 over_request_rate_limit`. The app signs in on first load, so one browser
+ * context is one account, and a suite that hands every test a clean context
+ * spends the whole budget in about twenty tests and then fails for reasons that
+ * have nothing to do with the app. That is not hypothetical; it is what
+ * happened, twice, before this file existed.
  *
- * So accounts are named (`player`, `friend`) and signed in at most once. What
- * is cached is the exact localStorage value the app wrote, replayed into later
- * contexts before their first navigation, so nothing here needs to know the
- * shape of a Supabase session.
+ * So there are four accounts and no more:
  *
- * The cache is also written to disk, outside git, and reused by later runs:
- * the refresh token in it outlives the access token by a long way, and
- * supabase-js refreshes on load. A developer iterating on these tests therefore
- * spends sign-ins once rather than once per run. Delete the file to start over.
+ * | role     | who                                                        |
+ * | -------- | ---------------------------------------------------------- |
+ * | `player` | the browser player in every single-player spec              |
+ * | `friend` | the second browser, for the create→join flow                |
+ * | `host`   | out of band: creates rooms, plays No. 1 to learn the answer |
+ * | `rival`  | out of band: a *second* player who has solved that puzzle   |
  *
- * Each test still gets a fresh room, and one account may hold a seat in many
- * rooms, so the reuse costs no isolation that matters. Two players who share a
- * room must be different names — that is what the names are for.
+ * Each is minted once and cached in `e2e/.cache/sessions.json`, outside git and
+ * outside Playwright's output directory — which it empties at the start of
+ * every run. Later runs therefore cost nothing; `e2e/scripts/warm-sessions.mjs`
+ * fills the cache ahead of time when the budget is tight.
+ *
+ * A session is minted straight from `/auth/v1/signup` and replayed into
+ * localStorage before the first navigation. That is sound because the response
+ * body *is* what supabase-js persists — same six fields, verified against a
+ * value the app itself wrote — so the browser finds a session and never signs
+ * in again.
+ *
+ * Tests stay isolated where it matters: every test gets a fresh room, and one
+ * account may hold a seat in many rooms. The rule the roles encode is that two
+ * players in the same room must be different accounts.
  */
 
 // Not `.artifacts`: Playwright empties its outputDir at the start of every run,
@@ -40,7 +50,7 @@ function readCache(): Cache {
     const parsed: unknown = JSON.parse(readFileSync(CACHE_FILE, 'utf8'))
     if (parsed !== null && typeof parsed === 'object') return parsed as Cache
   } catch {
-    // No cache yet, or an unreadable one. Either way, sign in again.
+    // No cache yet, or an unreadable one. Either way, mint a new session.
   }
   return {}
 }
@@ -55,21 +65,21 @@ function writeCache(cache: Cache): void {
 }
 
 /**
- * The out-of-band accounts, cached on the same terms as the browser ones.
+ * The account for `role`, from the cache when possible.
  *
  * `fresh: true` forces a new sign-up, which is what to do when an existing
  * account has spent a per-user budget such as create-room's ten per hour.
  */
-export async function apiUserFor(role: string, fresh = false): Promise<ApiUser> {
-  const key = `api:${role}`
-
+export async function accountFor(role: string, fresh = false): Promise<ApiUser> {
   if (!fresh) {
-    const cached = readCache()[key]
+    const cached = readCache()[role]
     if (cached !== undefined) {
       try {
         const user = ApiUser.fromSession(cached)
+        // The access token lasts an hour; the refresh token far longer, which
+        // is what makes a cache worth keeping between runs.
         if (!user.isStale || (await user.refresh())) {
-          writeCache({ ...readCache(), [key]: user.serialise() })
+          writeCache({ ...readCache(), [role]: user.serialise() })
           return user
         }
       } catch {
@@ -79,67 +89,12 @@ export async function apiUserFor(role: string, fresh = false): Promise<ApiUser> 
   }
 
   const user = await ApiUser.signUp()
-  writeCache({ ...readCache(), [key]: user.serialise() })
+  writeCache({ ...readCache(), [role]: user.serialise() })
   return user
 }
 
-export class SessionVault {
-  private readonly memory = new Map<string, string>()
-
-  async get(role: string, browser: Browser, baseURL: string): Promise<string> {
-    const cached = this.memory.get(role)
-    if (cached !== undefined) return cached
-
-    const onDisk = readCache()[role]
-    if (onDisk !== undefined) {
-      this.memory.set(role, onDisk)
-      return onDisk
-    }
-
-    const value = await this.signIn(role, browser, baseURL)
-    this.memory.set(role, value)
-    writeCache({ ...readCache(), [role]: value })
-    return value
-  }
-
-  private async signIn(role: string, browser: Browser, baseURL: string): Promise<string> {
-    const context = await browser.newContext()
-    const authFailures: string[] = []
-
-    try {
-      const page = await context.newPage()
-      await hideDevOverlay(page)
-
-      // A rate-limited sign-in is the single most likely reason this suite
-      // fails, and a bare timeout hides it. Keep the reason to hand.
-      page.on('response', (response) => {
-        if (!response.url().includes('/auth/v1/') || response.ok()) return
-        authFailures.push(`${response.status()} ${response.url()}`)
-      })
-
-      await page.goto(baseURL)
-      await page.waitForFunction(
-        (key) => window.localStorage.getItem(key as string) !== null,
-        AUTH_STORAGE_KEY,
-        { timeout: 45_000 },
-      )
-
-      const value = await page.evaluate(
-        (key) => window.localStorage.getItem(key as string),
-        AUTH_STORAGE_KEY,
-      )
-      if (value === null) throw new Error(`No session stored for role "${role}"`)
-      return value
-    } catch (error) {
-      const detail = authFailures.length
-        ? `\nThe auth endpoint refused it: ${authFailures.join(', ')}.` +
-          '\nA 429 here is the project’s anonymous sign-in budget for this IP — ' +
-          'it refills on the hour, and a cached e2e/.artifacts/sessions.json avoids ' +
-          'spending it again.'
-        : ''
-      throw new Error(`Could not sign in as "${role}".${detail}\n${String(error)}`)
-    } finally {
-      await context.close()
-    }
-  }
+/** The same account, as the string the browser keeps in localStorage. */
+export async function sessionFor(role: string): Promise<string> {
+  const user = await accountFor(role)
+  return user.serialise()
 }

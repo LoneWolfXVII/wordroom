@@ -4,7 +4,7 @@ import { test as base } from '@playwright/test'
 import { type ApiUser, discoverAnswer, EdgeError, type Room } from './api'
 import { hideDevOverlay, signInAs } from './app'
 import { isSupabaseConfigured } from './env'
-import { apiUserFor, SessionVault } from './sessions'
+import { accountFor, sessionFor } from './sessions'
 import { WireLog } from './wire'
 
 /**
@@ -53,14 +53,14 @@ export class Probe {
   /** Rolls over before it reaches create-room's limit of 10 per hour. */
   private async hostUser(fresh = false): Promise<ApiUser> {
     if (fresh || this.host === null || this.roomsCreated >= 8) {
-      this.host = await apiUserFor('host', fresh)
+      this.host = await accountFor('host', fresh)
       this.roomsCreated = 0
     }
     return this.host
   }
 
   private async rivalUser(): Promise<ApiUser> {
-    this.rival ??= await apiUserFor('rival')
+    this.rival ??= await accountFor('rival')
     return this.rival
   }
 
@@ -122,7 +122,6 @@ export class Probe {
 
 interface WorkerFixtures {
   probe: Probe
-  vault: SessionVault
 }
 
 interface TestFixtures {
@@ -141,22 +140,15 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     { scope: 'worker' },
   ],
 
-  vault: [
-    // biome-ignore lint/correctness/noEmptyPattern: Playwright's fixture signature.
-    async ({}, use) => {
-      await use(new SessionVault())
-    },
-    { scope: 'worker' },
-  ],
-
-  page: async ({ page, browser, baseURL, vault }, use) => {
+  page: async ({ page }, use) => {
     await hideDevOverlay(page)
-    await signInAs(page, await vault.get('player', browser, baseURL ?? ''))
+    await signInAs(page, await sessionFor('player'))
     await use(page)
   },
 
-  friendSession: async ({ browser, baseURL, vault }, use) => {
-    await use(await vault.get('friend', browser, baseURL ?? ''))
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright's fixture signature.
+  friendSession: async ({}, use) => {
+    await use(await sessionFor('friend'))
   },
 
   wire: async ({ page, baseURL }, use) => {
