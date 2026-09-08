@@ -37,6 +37,14 @@ supabase db push
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 
+## Applying any of this
+
+**Nothing here goes through git.** A migration run in the SQL editor and a
+function deploy both change the live system the moment they run — no branch, no
+review, no rollback. Migrations are applied by the operator, not automatically,
+and a schema change plus the code that needs it should ship together. See
+"Never change production directly" in `CLAUDE.md`.
+
 ## Deploying the edge functions
 
 ```bash
