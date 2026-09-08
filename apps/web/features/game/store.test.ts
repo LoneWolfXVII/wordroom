@@ -201,3 +201,42 @@ describe('the result sheet', () => {
     expect(store().resultOpen).toBe(false)
   })
 })
+
+describe('configure across rooms', () => {
+  const roomA = { id: 'room-a', name: 'Alpha', code: 'AAAA' }
+  const roomB = { id: 'room-b', name: 'Beta', code: 'BBBB' }
+
+  it('clears the previous room state when pointed at a different room', () => {
+    useGameStore.getState().reset()
+    useGameStore.getState().configure({ room: roomA })
+    useGameStore.setState({
+      puzzle: { id: 'p1', roomId: roomA.id, mode: 5, number: 3 },
+      guesses: [{ guess: 'crane', marks: ['absent', 'absent', 'absent', 'absent', 'absent'] }],
+      current: 'sw',
+      status: 'playing',
+      revealedWord: null,
+    })
+
+    useGameStore.getState().configure({ room: roomB })
+
+    const next = useGameStore.getState()
+    expect(next.room?.id).toBe('room-b')
+    expect(next.puzzle).toBeNull()
+    expect(next.guesses).toEqual([])
+    expect(next.current).toBe('')
+    expect(next.status).toBe('idle')
+    expect(next.numbers).toEqual({ 5: 1, 6: 1, 7: 1 })
+  })
+
+  it('keeps play state when reconfigured for the same room', () => {
+    useGameStore.getState().reset()
+    useGameStore.getState().configure({ room: roomA })
+    const puzzle = { id: 'p1', roomId: roomA.id, mode: 5 as const, number: 3 }
+    useGameStore.setState({ puzzle, current: 'sw' })
+
+    useGameStore.getState().configure({ room: roomA })
+
+    expect(useGameStore.getState().puzzle).toEqual(puzzle)
+    expect(useGameStore.getState().current).toBe('sw')
+  })
+})

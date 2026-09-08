@@ -210,12 +210,25 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
     configure({ room, mode, numbers, settings, api: injected }) {
       if (injected !== undefined) api = injected
-      set((state) => ({
-        room,
-        mode: mode ?? state.mode,
-        numbers: { ...state.numbers, ...numbers },
-        pendingSettings: settings ?? state.pendingSettings,
-      }))
+      set((state) => {
+        // Pointing the store at a different room must not leave the previous
+        // room's puzzle, board and key colours on screen. The store is module
+        // scoped, so without this a player who leaves one room and opens another
+        // sees the old game until the new puzzle lands — and briefly types into
+        // a board belonging to a room they are no longer in.
+        const switchingRooms = state.room !== null && state.room.id !== room.id
+        const carried = switchingRooms ? initialState : state
+
+        return {
+          ...carried,
+          room,
+          mode: mode ?? carried.mode,
+          numbers: switchingRooms
+            ? { ...initialState.numbers, ...numbers }
+            : { ...state.numbers, ...numbers },
+          pendingSettings: settings ?? carried.pendingSettings,
+        }
+      })
     },
 
     async loadPuzzle(mode, number) {
