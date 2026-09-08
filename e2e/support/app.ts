@@ -258,6 +258,20 @@ export function resultSheet(page: Page): Locator {
   return page.getByRole('dialog')
 }
 
+/**
+ * Read a `StatTile`'s value by its caption.
+ *
+ * The tile is a value div above a label div with no accessible relationship
+ * between them, so this walks from the label a test can name to the number it
+ * describes.
+ */
+export async function statValue(sheet: Locator, label: string): Promise<string> {
+  const caption = sheet.getByText(label, { exact: true })
+  const value = caption.locator('xpath=preceding-sibling::div[1]')
+  await expect(value).toBeVisible()
+  return ((await value.textContent()) ?? '').trim()
+}
+
 /** Wait for the result sheet, which opens on a settle timer after the reveal. */
 export async function waitForResult(page: Page): Promise<Locator> {
   const sheet = resultSheet(page)
