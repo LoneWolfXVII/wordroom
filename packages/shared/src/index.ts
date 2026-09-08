@@ -1,4 +1,5 @@
 export * from './hard-mode.js'
+export * from './marks.js'
 export * from './points.js'
 export * from './score.js'
 export * from './stats.js'
