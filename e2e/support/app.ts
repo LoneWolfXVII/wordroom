@@ -18,12 +18,12 @@ export const MAX_GUESSES = 6
 /**
  * Hide the Next.js dev-tools indicator.
  *
- * It is a fixed, bottom-left floating button, and at 375×667 it sits directly
- * on top of the keyboard's Enter key — so in `next dev` a phone-sized window
- * cannot submit a guess by tapping. That is a dev-only overlay and not the
- * app's behaviour, so the suite removes it rather than working around it; the
- * report flags it for whoever owns the Next config. A no-op against a
- * production build.
+ * It is a fixed, bottom-left floating button, and at 375×667 it sat directly on
+ * top of the keyboard's Enter key — a phone-sized window in `next dev` could not
+ * submit a guess by tapping. `next.config.ts` now sets `devIndicators: false`,
+ * so this is a belt-and-braces guard rather than the fix: it costs one init
+ * script, and it means the suite reports a broken Enter key as a broken Enter
+ * key rather than as a dev overlay someone re-enabled.
  */
 export async function hideDevOverlay(page: Page): Promise<void> {
   await page.addInitScript(() => {
