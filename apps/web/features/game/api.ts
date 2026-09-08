@@ -129,11 +129,11 @@ function readGuessResult(body: Record<string, unknown>): GuessResult {
     guessesRemaining: asNumber(body.guessesRemaining) ?? 0,
     solved: body.solved === true,
     finished,
-    // answers-ok: the reveal path. `submit-guess` only sets this field once the
-    // attempt is solved, failed or timed out, which is exactly when the player
-    // is allowed to see the word. Renamed on the way in so nothing downstream
-    // carries a field called `answer`.
-    word: finished ? asString(body.answer) : null,
+    // The reveal path, and the only line in apps/web that names the field.
+    // `submit-guess` sets it only once the attempt is solved, failed or timed
+    // out — exactly when the player is allowed to see the word. It is renamed
+    // to `word` here so nothing downstream can carry an `answer`.
+    word: finished ? asString(body.answer) : null, // answers-ok: reveal path only
     points: asNumber(body.points),
     elapsedMs: asNumber(body.elapsedMs),
   }

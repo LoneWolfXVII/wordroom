@@ -21,6 +21,7 @@ export function DevGame() {
   const applySettings = useGameStore((state) => state.applySettings)
   const status = useGameStore((state) => state.status)
   const [settings, setSettings] = useState<PlayerSettings>(DEFAULT_PLAYER_SETTINGS)
+  const [panelOpen, setPanelOpen] = useState(false)
   const started = useRef(false)
 
   useEffect(() => {
@@ -52,30 +53,45 @@ export function DevGame() {
       />
 
       {/*
-        Harness controls, not product. They stand in for the settings sheet so
-        hard mode and the timer can be exercised; they are absolutely positioned
-        so they cannot change the game screen's own height budget.
+        Harness controls, not product. They stand in for workstream 4's settings
+        sheet so hard mode and the timer can be exercised. Fixed and collapsed by
+        default: it must neither eat into the game screen's height budget nor sit
+        on top of the header while the layout is being checked.
       */}
-      <div className="fixed top-2 left-2 z-30 flex flex-col gap-1.5 rounded-md bg-surface/90 px-3 py-2 text-[11px] text-ink-2 shadow-sm backdrop-blur">
-        <span className="font-semibold uppercase">harness · {status}</span>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={settings.hardMode}
-            onCheckedChange={(hardMode) => update({ ...settings, hardMode })}
-            aria-label="Hard mode"
-          />
-          Hard mode
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={settings.timerMode !== 'off'}
-            onCheckedChange={(on) =>
-              update({ ...settings, timerMode: on ? 'per-puzzle' : 'off', perPuzzleSeconds: 60 })
-            }
-            aria-label="Timer"
-          />
-          Timer 1:00
-        </div>
+      <div className="fixed top-1 left-1 z-30 text-[11px] text-ink-2">
+        <button
+          type="button"
+          onClick={() => setPanelOpen((wasOpen) => !wasOpen)}
+          className="rounded-sm bg-surface/80 px-1.5 py-0.5 font-semibold uppercase opacity-70 backdrop-blur"
+        >
+          dev · {status}
+        </button>
+        {panelOpen ? (
+          <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-surface/95 px-3 py-2 shadow-sm backdrop-blur">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={settings.hardMode}
+                onCheckedChange={(hardMode) => update({ ...settings, hardMode })}
+                aria-label="Hard mode"
+              />
+              Hard mode
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={settings.timerMode !== 'off'}
+                onCheckedChange={(on) =>
+                  update({
+                    ...settings,
+                    timerMode: on ? 'per-puzzle' : 'off',
+                    perPuzzleSeconds: 60,
+                  })
+                }
+                aria-label="Timer"
+              />
+              Timer 1:00
+            </div>
+          </div>
+        ) : null}
       </div>
     </>
   )
