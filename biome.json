@@ -14,7 +14,7 @@
       "!**/coverage",
       "!docs",
       "!supabase/seed.sql",
-      "!**/.claude",
+      "!.claude",
       "!supabase/functions"
     ]
   },
