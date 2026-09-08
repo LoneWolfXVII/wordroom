@@ -19,8 +19,8 @@
  */
 
 import type { Mode } from '@wordroom/shared'
-import type { PuzzleRow, RoomRow, ServiceClient } from './db.ts'
-import { AppError, conflict, mapPostgresError, notFound } from './errors.ts'
+import type { PlayerRow, PuzzleRow, RoomRow, ServiceClient } from './db.ts'
+import { AppError, conflict, forbidden, mapPostgresError } from './errors.ts'
 
 /** The exact string that is hashed. Written down so tests can pin it. */
 export function puzzleDigestInput(seed: string, mode: Mode, number: number): string {
@@ -50,116 +50,106 @@ export async function puzzleIndex(
   return Number(value % BigInt(count))
 }
 
-async function selectPuzzle(
+export interface PuzzleContext {
+  room: RoomRow
+  player: PlayerRow
+  /** Highest number the room has reached in this mode; 0 if none yet. */
+  reached: number
+  /** The puzzle asked for, if it has been materialised. */
+  puzzle: PuzzleRow | null
+  /** How many answers this mode has, for the modulo. */
+  bankCount: number
+}
+
+interface PuzzleContextRow {
+  room: RoomRow
+  player: PlayerRow
+  reached: number
+  puzzle: PuzzleRow | null
+  bank_count: number
+}
+
+/**
+ * Everything the handler needs before it can answer, in one round trip.
+ *
+ * SERVER ONLY — `room` carries `seed`.
+ *
+ * No row means the caller is not a player in this room. It also means the room
+ * does not exist, and the two are deliberately indistinguishable: a stranger
+ * should not be able to probe which room ids are real. That was already true of
+ * the membership check this replaces.
+ */
+export async function loadPuzzleContext(
   db: ServiceClient,
   roomId: string,
   mode: Mode,
   number: number,
-): Promise<PuzzleRow | null> {
+  userId: string,
+): Promise<PuzzleContext> {
   const { data, error } = await db
-    .from('puzzles')
-    .select('id, room_id, mode, number, answer, created_at')
-    .eq('room_id', roomId)
-    .eq('mode', mode)
-    .eq('number', number)
+    .rpc('puzzle_context', {
+      p_room_id: roomId,
+      p_mode: mode,
+      p_number: number,
+      p_user_id: userId,
+    })
     .maybeSingle()
 
   if (error) throw mapPostgresError(error)
-  return (data as PuzzleRow | null) ?? null
-}
+  if (!data) throw forbidden('not_a_member', 'You are not a player in this room.')
 
-async function deriveAnswer(db: ServiceClient, seed: string, mode: Mode, number: number) {
-  const { count, error: countError } = await db
-    .from('word_bank')
-    .select('word', { count: 'exact', head: true })
-    .eq('len', mode)
+  const row = data as PuzzleContextRow
+  if (row.room.archived_at) throw conflict('room_archived', 'This room has been archived.')
 
-  if (countError) throw mapPostgresError(countError)
-  if (!count) {
-    console.error(`word_bank has no ${mode}-letter answers; run pnpm seed:wordbank`)
-    throw new AppError('word_bank_empty', 500, 'No answers are available for this mode.')
+  return {
+    room: row.room,
+    player: row.player,
+    reached: row.reached,
+    puzzle: row.puzzle,
+    bankCount: row.bank_count,
   }
-
-  const index = await puzzleIndex(seed, mode, number, count)
-
-  // `rank` is unique within a length, but ordering by word too makes the
-  // sequence stable even if a future seed ever repeats a rank.
-  const { data, error } = await db
-    .from('word_bank')
-    .select('word')
-    .eq('len', mode)
-    .order('rank', { ascending: true })
-    .order('word', { ascending: true })
-    .range(index, index)
-
-  if (error) throw mapPostgresError(error)
-
-  const word = (data as { word: string }[] | null)?.[0]?.word
-  if (!word) {
-    console.error(`word_bank index ${index} of ${count} returned nothing for mode ${mode}`)
-    throw new AppError('word_bank_empty', 500, 'No answers are available for this mode.')
-  }
-  return word
-}
-
-/** Highest puzzle number the room has reached in this mode; 0 if none yet. */
-export async function highestNumber(
-  db: ServiceClient,
-  roomId: string,
-  mode: Mode,
-): Promise<number> {
-  const { data, error } = await db
-    .from('puzzles')
-    .select('number')
-    .eq('room_id', roomId)
-    .eq('mode', mode)
-    .order('number', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (error) throw mapPostgresError(error)
-  return (data as { number: number } | null)?.number ?? 0
 }
 
 /**
  * Return the puzzle for (room, mode, number), creating it on first request.
  *
  * SERVER ONLY — the returned row carries the answer.
+ *
+ * Free when the puzzle already exists: the context read has it. Otherwise one
+ * more round trip, and only one, because the index is derived here. That is not
+ * an arbitrary split — `seed` is as secret as an answer and never leaves the
+ * server, so the hash has to happen between the two queries. Pushing it into
+ * SQL would put a second definition of the sequence in a second language, and
+ * the sequence has to stay reproducible for the life of a room.
  */
 export async function materialisePuzzle(
   db: ServiceClient,
-  room: RoomRow,
+  context: PuzzleContext,
   mode: Mode,
   number: number,
 ): Promise<PuzzleRow> {
-  const existing = await selectPuzzle(db, room.id, mode, number)
-  if (existing) return existing
+  if (context.puzzle) return context.puzzle
 
-  const answer = await deriveAnswer(db, room.seed, mode, number)
-
-  const { data, error } = await db
-    .from('puzzles')
-    .insert({ room_id: room.id, mode, number, answer })
-    .select('id, room_id, mode, number, answer, created_at')
-    .single()
-
-  if (error) {
-    // Another request materialised the same puzzle a moment ago. Both derived
-    // the same word, so re-reading is not just safe, it is identical.
-    const raced = await selectPuzzle(db, room.id, mode, number)
-    if (raced) return raced
-    throw mapPostgresError(error)
+  if (context.bankCount <= 0) {
+    console.error(`word_bank has no ${mode}-letter answers; run pnpm seed:wordbank`)
+    throw new AppError('word_bank_empty', 500, 'No answers are available for this mode.')
   }
 
-  return data as PuzzleRow
-}
+  const index = await puzzleIndex(context.room.seed, mode, number, context.bankCount)
 
-export async function loadRoomForMember(db: ServiceClient, roomId: string): Promise<RoomRow> {
-  const { data, error } = await db.from('rooms').select('*').eq('id', roomId).maybeSingle()
+  const { data, error } = await db.rpc('materialise_puzzle', {
+    p_room_id: context.room.id,
+    p_mode: mode,
+    p_number: number,
+    p_index: index,
+  })
+
   if (error) throw mapPostgresError(error)
-  if (!data) throw notFound('room_not_found', 'That room does not exist.')
 
-  const room = data as RoomRow
-  if (room.archived_at) throw conflict('room_archived', 'This room has been archived.')
-  return room
+  const row = data as PuzzleRow | null
+  if (!row) {
+    console.error(`word_bank index ${index} of ${context.bankCount} returned nothing for ${mode}`)
+    throw new AppError('word_bank_empty', 500, 'No answers are available for this mode.')
+  }
+  return row
 }
