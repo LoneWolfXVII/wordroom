@@ -99,6 +99,9 @@ export async function GET(
     hardMode: payload.h,
     elapsedMs: payload.t,
     withLetters: words !== undefined,
+    // The host the image was requested from, so a preview deploy prints a link
+    // to itself rather than to production.
+    host: new URL(request.url).host,
   }
 
   return new ImageResponse(<ShareCard input={input} />, {

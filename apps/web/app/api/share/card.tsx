@@ -1,4 +1,3 @@
-import { SHARE_HOST, shareLink } from '@/features/game/share'
 import { brand, TILE_RADIUS_RATIO } from './brand'
 import { type CardInput, cardHeadline } from './headline'
 
@@ -126,7 +125,7 @@ export function ShareCard({ input }: { input: CardInput }) {
          * would be an invitation aimed at exactly the person it spoils it for.
          */}
         <div style={{ fontSize: 28, fontWeight: 400, color: brand.muted }}>
-          {input.withLetters ? SHARE_HOST : shareLink(input.roomCode)}
+          {input.withLetters ? input.host : `${input.host}/r/${input.roomCode.toUpperCase()}`}
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ function card(overrides: Partial<CardInput> = {}): CardInput {
     solved: true,
     hardMode: false,
     elapsedMs: null,
+    host: 'wordroom.example',
     withLetters: true,
     ...overrides,
   }
