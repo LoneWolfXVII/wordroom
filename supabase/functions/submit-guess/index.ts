@@ -1,0 +1,236 @@
+/**
+ * submit-guess — the security-critical one.
+ *
+ * POST { puzzleId, guess, elapsedMs? }        -> 200 GuessResultBody
+ * POST { puzzleId, timedOut: true, elapsedMs? } -> 200 GuessResultBody (a fail)
+ *
+ * THE RULE: the response carries marks — 'correct' / 'present' / 'absent' per
+ * tile — and nothing else, until the attempt is over. `answer` appears only
+ * once `finished_at` is set: solved, out of guesses, or timed out. Every
+ * unfinished body is checked against the answer before it is sent
+ * (`assertAnswerAbsent`), so a future refactor fails loudly here instead of
+ * quietly in someone's network tab.
+ *
+ * An invalid word is rejected and is NOT counted as a guess: nothing is written
+ * at all, so the row is not consumed. Same for a hard-mode violation.
+ *
+ * Scoring and the hard-mode rules come from `@wordroom/shared` via
+ * `_shared/guess-engine.ts`. They are not reimplemented here.
+ */
+
+import { findOwnAttempt, requireCaller, requirePuzzleAccess } from '../_shared/auth.ts'
+import { type AttemptRow, readSettings, type ServiceClient, serviceClient } from '../_shared/db.ts'
+import { conflict, mapPostgresError, unprocessable } from '../_shared/errors.ts'
+import {
+  type AttemptState,
+  emptyAttemptState,
+  playGuess,
+  timeOut,
+} from '../_shared/guess-engine.ts'
+import { jsonResponse, readJson, serveFunction } from '../_shared/http.ts'
+import { decodeMarks, encodeMarks } from '../_shared/marks.ts'
+import { guessResultBody } from '../_shared/presenters.ts'
+import { enforceRateLimit, SUBMIT_GUESS_LIMIT } from '../_shared/rate-limit.ts'
+import { submitGuessSchema } from '../_shared/schemas.ts'
+
+const ATTEMPT_COLUMNS = '*'
+
+function toState(attempt: AttemptRow): AttemptState {
+  return {
+    guesses: attempt.guesses,
+    marks: decodeMarks(attempt.marks),
+    solved: attempt.solved,
+    finishedAt: attempt.finished_at,
+    hardMode: attempt.hard_mode,
+  }
+}
+
+/**
+ * Play time is reported by the client, because the timer is a per-player
+ * setting that can be paused between sessions. It only ever breaks ties on the
+ * leaderboard — it never adds points — so a wrong value cannot buy a rank on
+ * its own. It is held monotonic so a later guess cannot lower it.
+ */
+function resolveElapsed(
+  attempt: AttemptRow | null,
+  reported: number | undefined,
+  now: Date,
+): number | null {
+  const previous = attempt?.elapsed_ms ?? null
+
+  if (reported !== undefined) return Math.max(reported, previous ?? 0)
+  if (!attempt) return null
+
+  const sinceStart = now.getTime() - new Date(attempt.started_at).getTime()
+  return Math.max(Number.isFinite(sinceStart) ? Math.max(sinceStart, 0) : 0, previous ?? 0)
+}
+
+interface PersistInput {
+  db: ServiceClient
+  attempt: AttemptRow | null
+  playerId: string
+  puzzleId: string
+  next: AttemptState
+  elapsedMs: number | null
+  timerMode: string
+  hardMode: boolean
+}
+
+/**
+ * Write the attempt.
+ *
+ * Two guesses racing on the same attempt would otherwise both read guess_count
+ * = 2 and both write 3, losing one. The update is conditional on the count and
+ * on the attempt still being open, so the loser writes nothing and is told to
+ * retry rather than silently overwriting.
+ */
+async function persist(input: PersistInput): Promise<AttemptRow> {
+  const { db, attempt, next } = input
+  const row = {
+    guesses: next.guesses,
+    marks: encodeMarks(next.marks),
+    solved: next.solved,
+    guess_count: next.guesses.length,
+    elapsed_ms: input.elapsedMs,
+    finished_at: next.finishedAt,
+  }
+
+  if (!attempt) {
+    const { data, error } = await db
+      .from('attempts')
+      .insert({
+        ...row,
+        player_id: input.playerId,
+        puzzle_id: input.puzzleId,
+        timer_mode: input.timerMode,
+        hard_mode: input.hardMode,
+      })
+      .select(ATTEMPT_COLUMNS)
+      .single()
+
+    if (error) throw mapPostgresError(error)
+    return data as AttemptRow
+  }
+
+  const { data, error } = await db
+    .from('attempts')
+    .update(row)
+    .eq('id', attempt.id)
+    .eq('guess_count', attempt.guess_count)
+    .is('finished_at', null)
+    .select(ATTEMPT_COLUMNS)
+    .maybeSingle()
+
+  if (error) throw mapPostgresError(error)
+  if (!data) {
+    throw conflict('guess_in_flight', 'That guess crossed with another. Try again.')
+  }
+  return data as AttemptRow
+}
+
+serveFunction(async (req) => {
+  const caller = await requireCaller(req)
+  const db = serviceClient()
+
+  await enforceRateLimit(db, 'submit-guess', caller.userId, SUBMIT_GUESS_LIMIT)
+
+  const body = await readJson(req, submitGuessSchema)
+  const { puzzle, player } = await requirePuzzleAccess(db, body.puzzleId, caller.userId)
+
+  const attempt = await findOwnAttempt(db, puzzle.id, player.id)
+  const settings = readSettings(player)
+  const now = new Date()
+  const nowIso = now.toISOString()
+
+  // Hard mode and the timer are snapshotted onto the attempt when it is opened,
+  // so changing a setting mid-puzzle cannot change the rules of a puzzle in
+  // play. Settings apply from the next puzzle, per the spec.
+  const state = attempt ? toState(attempt) : emptyAttemptState(settings.hardMode)
+  const elapsedMs = resolveElapsed(attempt, body.elapsedMs, now)
+
+  if (body.timedOut === true) {
+    // Already over: answer the same way twice rather than erroring, so a retry
+    // after a dropped connection still gets the player their result.
+    if (attempt && attempt.finished_at !== null) {
+      return jsonResponse(
+        req,
+        guessResultBody({
+          attemptId: attempt.id,
+          puzzleId: puzzle.id,
+          marks: null,
+          guessCount: attempt.guess_count,
+          solved: attempt.solved,
+          finishedAt: attempt.finished_at,
+          elapsedMs: attempt.elapsed_ms,
+          answer: puzzle.answer,
+        }),
+      )
+    }
+
+    const finished = await persist({
+      db,
+      attempt,
+      playerId: player.id,
+      puzzleId: puzzle.id,
+      next: timeOut(state, nowIso),
+      elapsedMs,
+      timerMode: settings.timerMode,
+      hardMode: settings.hardMode,
+    })
+
+    return jsonResponse(
+      req,
+      guessResultBody({
+        attemptId: finished.id,
+        puzzleId: puzzle.id,
+        marks: null,
+        guessCount: finished.guess_count,
+        solved: finished.solved,
+        finishedAt: finished.finished_at,
+        elapsedMs: finished.elapsed_ms,
+        answer: puzzle.answer,
+      }),
+    )
+  }
+
+  const outcome = playGuess({
+    answer: puzzle.answer,
+    mode: puzzle.mode,
+    guess: body.guess,
+    state,
+    now: nowIso,
+  })
+
+  if (outcome.kind === 'rejected') {
+    // Nothing has been written. The guess did not happen.
+    if (outcome.code === 'attempt_finished') {
+      throw conflict(outcome.code, outcome.message, outcome.details)
+    }
+    throw unprocessable(outcome.code, outcome.message, outcome.details)
+  }
+
+  const saved = await persist({
+    db,
+    attempt,
+    playerId: player.id,
+    puzzleId: puzzle.id,
+    next: outcome.next,
+    elapsedMs,
+    timerMode: settings.timerMode,
+    hardMode: settings.hardMode,
+  })
+
+  return jsonResponse(
+    req,
+    guessResultBody({
+      attemptId: saved.id,
+      puzzleId: puzzle.id,
+      marks: outcome.marks,
+      guessCount: saved.guess_count,
+      solved: saved.solved,
+      finishedAt: saved.finished_at,
+      elapsedMs: saved.elapsed_ms,
+      answer: puzzle.answer,
+    }),
+  )
+})
