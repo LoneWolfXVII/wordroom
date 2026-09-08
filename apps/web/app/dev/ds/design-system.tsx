@@ -1,18 +1,25 @@
 'use client'
 
+import { decodeMarks } from '@wordroom/shared'
 import { useState } from 'react'
 import {
+  Avatar,
+  Badge,
   Button,
   Card,
   CardLabel,
+  Chip,
+  ChipRow,
   CodeBoxes,
   CodeDisplay,
+  Expand,
   Field,
   Help,
   Icon,
   IconButton,
   Input,
   Label,
+  MiniGrid,
   RadioGroup,
   RadioOption,
   Screen,
@@ -22,7 +29,12 @@ import {
   ScreenTop,
   ScreenTopSpacer,
   SegmentedControl,
+  SettingNote,
+  SettingRow,
   Sheet,
+  StatGrid,
+  StatTile,
+  Stepper,
   Switch,
   toast,
 } from '@/components/ui'
@@ -128,6 +140,60 @@ const ICON_SET = [
 /** Forced `:focus-visible`, matching the global outline in globals.css. */
 const FOCUS = 'outline-2 outline-offset-2 outline-accent'
 
+const MEMBERS = [
+  ['Nischal', 'You · host'],
+  ['Priya', 'solved'],
+  ['Arjun', 'playing'],
+] as const
+
+/**
+ * A finished attempt as it comes back from the database: `attempts.marks` is a
+ * `text[]`, decoded here with the shared codec. This is exactly the shape
+ * workstreams 2 and 4 hand to MiniGrid.
+ */
+const SAMPLE_MARKS = decodeMarks([
+  'absent,absent,absent,present,absent',
+  'correct,present,absent,absent,absent',
+  'correct,correct,absent,correct,correct',
+  'correct,correct,correct,correct,correct',
+])
+
+const LEADERBOARD = [
+  {
+    name: 'Priya',
+    score: 184,
+    average: 3.4,
+    hard: true,
+    me: false,
+    marks: decodeMarks(['correct,correct,present,correct,absent'])[0] ?? [],
+  },
+  {
+    name: 'You',
+    score: 171,
+    average: 3.6,
+    hard: false,
+    me: true,
+    marks: SAMPLE_MARKS[3] ?? [],
+  },
+  {
+    name: 'Arjun',
+    score: 166,
+    average: 3.7,
+    hard: false,
+    me: false,
+    marks: decodeMarks(['present,absent,correct,correct,absent'])[0] ?? [],
+  },
+] as const
+
+const PRESETS = [60, 120, 180, 300] as const
+/** Sentinel for the "Custom" chip, which reveals the stepper instead of setting a value. */
+const CUSTOM = -1
+
+function formatSeconds(total: number): string {
+  const seconds = Math.max(0, Math.round(total))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 export function DesignSystem() {
   const tokens = useTokenValues(TOKEN_NAMES)
 
@@ -141,6 +207,8 @@ export function DesignSystem() {
   const [plainSheet, setPlainSheet] = useState(false)
   const [richSheet, setRichSheet] = useState(false)
   const [moved, setMoved] = useState(false)
+  const [preset, setPreset] = useState<number>(180)
+  const [custom, setCustom] = useState(180)
 
   return (
     <div className="h-full overflow-y-auto overscroll-contain px-5 pb-16">
@@ -530,43 +598,43 @@ export function DesignSystem() {
         </Specimen>
       </Section>
 
-      <Section id="switch" title="Switch">
+      <Section
+        id="switch"
+        title="Switch"
+        note="Shown in SettingRow, which is where every switch in the product lives."
+      >
         <div className="flex flex-col">
-          <div className="flex items-center justify-between gap-4 py-3.5 text-[15px]">
-            <div>
-              Timer
-              <div className="mt-[3px] text-[13px] leading-[1.35] text-muted">
-                Off by default. Adds a time column on the board.
-              </div>
-            </div>
-            <Switch checked={timerOn} onCheckedChange={setTimerOn} aria-label="Timer" />
-          </div>
-          <div className="flex items-center justify-between gap-4 border-line border-t py-3.5 text-[15px]">
-            <div>
-              Hard mode
-              <div className="mt-[3px] text-[13px] leading-[1.35] text-muted">
-                Greens must stay put, yellows must be reused.
-              </div>
-            </div>
-            <Switch checked={hardMode} onCheckedChange={setHardMode} aria-label="Hard mode" />
-          </div>
-          <div className="flex items-center justify-between gap-4 border-line border-t py-3.5 text-[15px]">
-            <div>Disabled, off</div>
-            <Switch checked={false} disabled aria-label="Disabled off" />
-          </div>
-          <div className="flex items-center justify-between gap-4 border-line border-t py-3.5 text-[15px]">
-            <div>Disabled, on</div>
-            <Switch checked disabled aria-label="Disabled on" />
-          </div>
-          <div className="flex items-center justify-between gap-4 border-line border-t py-3.5 text-[15px]">
-            <div>Focus-visible (forced)</div>
-            <Switch
-              checked={false}
-              onCheckedChange={() => {}}
-              className={FOCUS}
-              aria-label="Focused"
-            />
-          </div>
+          <SettingRow
+            label="Timer"
+            hint="Off by default. Adds a time column on the board."
+            htmlFor="ds-timer"
+            control={<Switch id="ds-timer" checked={timerOn} onCheckedChange={setTimerOn} />}
+          />
+          <SettingRow
+            label="Hard mode"
+            hint="Greens must stay put, yellows must be reused."
+            htmlFor="ds-hard"
+            control={<Switch id="ds-hard" checked={hardMode} onCheckedChange={setHardMode} />}
+          />
+          <SettingRow
+            label="Disabled, off"
+            control={<Switch checked={false} disabled aria-label="Disabled off" />}
+          />
+          <SettingRow
+            label="Disabled, on"
+            control={<Switch checked disabled aria-label="Disabled on" />}
+          />
+          <SettingRow
+            label="Focus-visible (forced)"
+            control={
+              <Switch
+                checked={false}
+                onCheckedChange={() => {}}
+                className={FOCUS}
+                aria-label="Focused"
+              />
+            }
+          />
         </div>
       </Section>
 
@@ -614,6 +682,251 @@ export function DesignSystem() {
         <Specimen label="read-only display" state=".codebox.big">
           <CodeDisplay code="KHX7" />
         </Specimen>
+      </Section>
+
+      <Section id="avatar" title="Avatar" note="34px, the initial of a locked name.">
+        <Specimen label="in a member list">
+          <ul className="m-0 list-none p-0">
+            {MEMBERS.map(([name, status], index) => (
+              <li
+                key={name}
+                className="flex items-center gap-3 border-line border-t py-[11px] text-[15px] first:border-t-0"
+              >
+                <Avatar name={name} me={index === 0} />
+                {name}
+                <span className="ml-auto text-[13px] text-muted">{status}</span>
+              </li>
+            ))}
+          </ul>
+        </Specimen>
+        <Specimen label="both fills">
+          <div className="flex gap-2">
+            <Avatar name="Nischal" me />
+            <Avatar name="Priya" />
+            <Avatar name="arjun" />
+          </div>
+        </Specimen>
+      </Section>
+
+      <Section id="badge" title="Badge" note="Trails a name; carries its own left margin.">
+        <div className="flex flex-col gap-2 text-[15px]">
+          <div>
+            <span className="font-medium">Priya</span>
+            <Badge>HARD</Badge>
+          </div>
+          <div>
+            <span className="font-medium">You</span>
+            <Badge>HARD</Badge>
+            <Badge>HOST</Badge>
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        id="mini-grid"
+        title="Mini grid"
+        note="Takes decoded attempts.marks. One colour representation, two scales — never letters."
+      >
+        <Specimen label="sm" state=".mini — one leaderboard row">
+          <MiniGrid rows={[SAMPLE_MARKS[2] ?? []]} />
+        </Specimen>
+        <Specimen label="sm" state="a full attempt">
+          <MiniGrid rows={SAMPLE_MARKS} />
+        </Specimen>
+        <Specimen label="lg" state=".share — the result sheet">
+          <MiniGrid rows={SAMPLE_MARKS} size="lg" className="mx-auto" />
+        </Specimen>
+        <Specimen label="in a leaderboard row">
+          <ol className="m-0 list-none p-0">
+            {LEADERBOARD.map((row, index) => (
+              <li
+                key={row.name}
+                className="grid grid-cols-[24px_1fr_auto_auto] items-center gap-3 border-line border-t py-3 text-[15px] first:border-t-0"
+              >
+                <span className="tabular text-[13px] text-muted">{index + 1}</span>
+                <span className={cn('font-medium', row.me && 'text-accent')}>
+                  {row.name}
+                  {row.hard ? <Badge>HARD</Badge> : null}
+                </span>
+                <MiniGrid rows={[row.marks]} label={`${row.name}'s grid this puzzle`} />
+                <span className="tabular min-w-[34px] text-right font-semibold">
+                  {row.score}
+                  <span className="block text-[12px] font-normal text-muted">
+                    {row.average} avg
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </Specimen>
+        <Specimen label="no marks yet" state="renders nothing">
+          <div className="rounded-md border border-line border-dashed p-3 text-[12px] text-muted">
+            <MiniGrid rows={[]} />
+            (empty)
+          </div>
+        </Specimen>
+      </Section>
+
+      <Section id="stat" title="Stat tile">
+        <Specimen label="three up" state="result sheet">
+          <StatGrid>
+            <StatTile value="3" label="guesses" />
+            <StatTile value="1:38" label="time" />
+            <StatTile value="↑ 2nd" label="rank" positive />
+          </StatGrid>
+        </Specimen>
+        <Specimen label="four up" state="stats tab">
+          <StatGrid columns={4}>
+            <StatTile value="41" label="played" />
+            <StatTile value="88%" label="win" />
+            <StatTile value="6" label="streak" />
+            <StatTile value="14" label="max" />
+          </StatGrid>
+        </Specimen>
+        <Specimen label="empty values">
+          <StatGrid>
+            <StatTile value="—" label="guesses" />
+            <StatTile value="—" label="time" />
+            <StatTile value="—" label="rank" />
+          </StatGrid>
+        </Specimen>
+      </Section>
+
+      <Section id="chip" title="Chip" note="32px pill, 40px hit target. See the note in chip.tsx.">
+        <Specimen label="preset row" state={`${preset}s`}>
+          <ChipRow className="pl-0">
+            {PRESETS.map((seconds) => (
+              <Chip key={seconds} selected={preset === seconds} onClick={() => setPreset(seconds)}>
+                {formatSeconds(seconds)}
+              </Chip>
+            ))}
+            <Chip selected={preset === CUSTOM} onClick={() => setPreset(CUSTOM)}>
+              Custom
+            </Chip>
+          </ChipRow>
+        </Specimen>
+        <Specimen label="states">
+          <div className="flex flex-wrap gap-1.5">
+            <Chip>Default</Chip>
+            <Chip selected>Selected</Chip>
+            <Chip className="scale-[0.95]">Active (forced)</Chip>
+            <Chip className={FOCUS}>Focus (forced)</Chip>
+            <Chip disabled>Disabled</Chip>
+          </div>
+        </Specimen>
+      </Section>
+
+      <Section id="stepper" title="Stepper" note="A spinbutton: arrows, Home and End all work.">
+        <Stepper
+          className="pl-0"
+          label="Time per puzzle"
+          value={custom}
+          onValueChange={setCustom}
+          min={30}
+          max={600}
+          step={30}
+          format={formatSeconds}
+          hint="30s steps, up to 10:00"
+        />
+        <Specimen label="at the minimum" state="minus disabled">
+          <Stepper
+            className="pl-0"
+            label="Example minimum"
+            value={30}
+            onValueChange={() => {}}
+            min={30}
+            max={600}
+            step={30}
+            format={formatSeconds}
+          />
+        </Specimen>
+        <Specimen label="at the maximum" state="plus disabled">
+          <Stepper
+            className="pl-0"
+            label="Example maximum"
+            value={600}
+            onValueChange={() => {}}
+            min={30}
+            max={600}
+            step={30}
+            format={formatSeconds}
+          />
+        </Specimen>
+      </Section>
+
+      <Section
+        id="settings"
+        title="Settings composition"
+        note="SettingRow, Expand, RadioOption, ChipRow and Stepper as the settings sheet assembles them."
+      >
+        <div className="flex flex-col">
+          <SettingRow
+            label="Timer"
+            hint="Off by default. Adds a time column on the board."
+            htmlFor="ds-timer-2"
+            control={<Switch id="ds-timer-2" checked={timerOn} onCheckedChange={setTimerOn} />}
+          />
+          <Expand open={timerOn}>
+            <RadioGroup value={timerMode} onValueChange={setTimerMode} aria-label="Timer mode">
+              <RadioOption
+                value="puzzle"
+                detail={formatSeconds(preset === CUSTOM ? custom : preset)}
+              >
+                Per puzzle
+              </RadioOption>
+            </RadioGroup>
+            <ChipRow>
+              {PRESETS.map((seconds) => (
+                <Chip
+                  key={seconds}
+                  selected={preset === seconds}
+                  onClick={() => setPreset(seconds)}
+                >
+                  {formatSeconds(seconds)}
+                </Chip>
+              ))}
+              <Chip selected={preset === CUSTOM} onClick={() => setPreset(CUSTOM)}>
+                Custom
+              </Chip>
+            </ChipRow>
+            {preset === CUSTOM ? (
+              <Stepper
+                label="Time per puzzle"
+                value={custom}
+                onValueChange={setCustom}
+                min={30}
+                max={600}
+                step={30}
+                format={formatSeconds}
+                hint="30s steps, up to 10:00"
+              />
+            ) : null}
+            <RadioGroup value={timerMode} onValueChange={setTimerMode} aria-label="Other modes">
+              <RadioOption value="guess" detail="20s">
+                Per guess
+              </RadioOption>
+              <RadioOption value="sprint" detail="fastest 5 solves">
+                Sprint
+              </RadioOption>
+            </RadioGroup>
+            <SettingNote>Changes apply from your next puzzle.</SettingNote>
+          </Expand>
+          <SettingRow
+            label="Hard mode"
+            hint="Greens must stay put, yellows must be reused. Marked on the leaderboard."
+            htmlFor="ds-hard-2"
+            control={<Switch id="ds-hard-2" checked={hardMode} onCheckedChange={setHardMode} />}
+          />
+          <SettingRow
+            label="Account"
+            hint="Playing as guest on this device"
+            control={
+              <Button size="sm" onClick={() => toast('Sign-in would open here')}>
+                Sign in
+              </Button>
+            }
+          />
+        </div>
       </Section>
 
       <Section
