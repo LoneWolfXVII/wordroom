@@ -40,6 +40,7 @@ export {
 export {
   type BoardPhase,
   type GameStatus,
+  type RestoredAttempt,
   type RoomContext,
   useGameStore,
 } from './store'

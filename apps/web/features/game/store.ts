@@ -44,6 +44,12 @@ export type GameStatus =
 /** Where the board is in a next-puzzle swap. */
 export type BoardPhase = 'idle' | 'out' | 'in'
 
+/** An unfinished attempt, as the server still has it. */
+export interface RestoredAttempt {
+  attemptId: string
+  guesses: ScoredGuess[]
+}
+
 export interface RoomContext {
   id: string
   name: string
@@ -114,7 +120,12 @@ export interface GameActions {
     settings?: PlayerSettings
     api?: GameApi
   }): void
-  loadPuzzle(mode: Mode, number: number): Promise<void>
+  /**
+   * Open a puzzle. `restore` re-hydrates an attempt already in progress, so a
+   * reload comes back to the board the server still holds rather than an empty
+   * one whose rows no longer line up with it.
+   */
+  loadPuzzle(mode: Mode, number: number, restore?: RestoredAttempt): Promise<void>
   typeLetter(letter: string): void
   deleteLetter(): void
   submit(): Promise<void>
@@ -231,7 +242,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       })
     },
 
-    async loadPuzzle(mode, number) {
+    async loadPuzzle(mode, number, restore) {
       const room = get().room
       if (room === null) return
 
@@ -240,13 +251,28 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
       try {
         const puzzle = await transport().getPuzzle({ roomId: room.id, mode, number })
-        set((state) => ({
-          puzzle,
-          mode: puzzle.mode,
-          numbers: { ...state.numbers, [puzzle.mode]: puzzle.number },
-          status: 'playing',
-          ...freshPuzzleState(Date.now(), state.pendingSettings),
-        }))
+        set((state) => {
+          const fresh = freshPuzzleState(Date.now(), state.pendingSettings)
+          // A restored attempt only replaces the empty board; everything else a
+          // new puzzle wipes still gets wiped. Guesses beyond the limit are
+          // ignored rather than trusted, so a bad row cannot overflow the board.
+          const rows = restore ? restore.guesses.slice(0, MAX_GUESSES) : []
+
+          return {
+            puzzle,
+            mode: puzzle.mode,
+            numbers: { ...state.numbers, [puzzle.mode]: puzzle.number },
+            status: 'playing' as GameStatus,
+            ...fresh,
+            ...(restore
+              ? {
+                  guesses: rows,
+                  keyStates: accumulateKeyStates(rows),
+                  attemptId: restore.attemptId,
+                }
+              : {}),
+          }
+        })
       } catch (error) {
         set({ status: 'idle' })
         get().notify(messageFor(error))

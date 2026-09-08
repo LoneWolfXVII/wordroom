@@ -73,14 +73,14 @@ export function GameRoute() {
     applyPendingSettings()
   }, [puzzle])
 
-  // Open the puzzle this player is actually up to, not No. 1. See `resume.ts`.
+  // Open the puzzle this player is up to, with the board they left. See `resume.ts`.
   useEffect(() => {
     if (!seat || !env || puzzle) return
 
     let cancelled = false
     void (async () => {
-      const number = await resumePuzzleNumber(getBrowserClient(), seat.room.id, mode)
-      if (!cancelled) await loadPuzzle(mode, number)
+      const { number, restore } = await resumePuzzleNumber(getBrowserClient(), seat.room.id, mode)
+      if (!cancelled) await loadPuzzle(mode, number, restore)
     })()
 
     return () => {
