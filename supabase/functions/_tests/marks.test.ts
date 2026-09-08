@@ -17,11 +17,13 @@ Deno.test('a row is the Mark names, comma separated, in guess order', () => {
 })
 
 Deno.test('round trips every mode', () => {
-  for (const [guess, answer] of [
-    ['slate', 'stale'],
-    ['people', 'purple'],
-    ['because', 'between'],
-  ] as const) {
+  for (
+    const [guess, answer] of [
+      ['slate', 'stale'],
+      ['people', 'purple'],
+      ['because', 'between'],
+    ] as const
+  ) {
     const marks = scoreGuess(guess, answer)
     assertEquals(decodeMarkRow(encodeMarkRow(marks)), marks)
   }

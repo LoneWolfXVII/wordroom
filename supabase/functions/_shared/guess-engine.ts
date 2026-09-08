@@ -13,8 +13,8 @@
 import {
   isHardModeValid,
   isSolved,
-  MAX_GUESSES,
   type MarkRow,
+  MAX_GUESSES,
   type Mode,
   points,
   type ScoredGuess,

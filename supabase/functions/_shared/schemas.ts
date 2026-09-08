@@ -8,7 +8,7 @@
  * better message, not to replace it.
  */
 
-import { MODES, type Mode } from '@wordroom/shared'
+import { type Mode, MODES } from '@wordroom/shared'
 import { z } from 'zod'
 import { CODE_PATTERN } from './codes.ts'
 

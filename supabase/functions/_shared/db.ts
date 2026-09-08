@@ -84,10 +84,9 @@ const TIMER_MODES: readonly TimerMode[] = ['off', 'per-puzzle', 'per-guess', 'sp
  */
 export function readSettings(row: PlayerRow): PlayerSettings {
   const raw = (row.settings ?? {}) as Partial<PlayerSettings>
-  const timerMode =
-    typeof raw.timerMode === 'string' && TIMER_MODES.includes(raw.timerMode)
-      ? raw.timerMode
-      : DEFAULT_PLAYER_SETTINGS.timerMode
+  const timerMode = typeof raw.timerMode === 'string' && TIMER_MODES.includes(raw.timerMode)
+    ? raw.timerMode
+    : DEFAULT_PLAYER_SETTINGS.timerMode
 
   return {
     timerMode,

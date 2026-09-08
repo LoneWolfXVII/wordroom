@@ -26,8 +26,9 @@ function allowedOrigins(): string[] {
 export function corsHeaders(req: Request): Record<string, string> {
   const allowed = allowedOrigins()
   const origin = req.headers.get('origin')
-  const allowOrigin =
-    allowed.includes('*') || origin === null || !allowed.includes(origin) ? '*' : origin
+  const allowOrigin = allowed.includes('*') || origin === null || !allowed.includes(origin)
+    ? '*'
+    : origin
 
   return {
     'access-control-allow-origin': allowOrigin === '*' ? '*' : allowOrigin,

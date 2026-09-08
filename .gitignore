@@ -17,3 +17,6 @@ coverage/
 supabase/.branches/
 supabase/.temp/
 supabase/seed.sql
+
+# Agent git worktrees live here; they are separate checkouts.
+.claude/worktrees/

@@ -13,7 +13,9 @@
       "!**/dist",
       "!**/coverage",
       "!docs",
-      "!supabase/seed.sql"
+      "!supabase/seed.sql",
+      "!**/.claude",
+      "!supabase/functions"
     ]
   },
   "formatter": {
