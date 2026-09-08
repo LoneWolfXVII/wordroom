@@ -53,6 +53,9 @@ export function Sheet({
       direction={asPanel ? 'right' : 'bottom'}
       open={open}
       onOpenChange={onOpenChange}
+      // Vaul leaves focus on the trigger by default, which makes the focus trap
+      // useless until the user tabs in. Move it into the sheet on open.
+      autoFocus
     >
       <Drawer.Portal>
         <Drawer.Overlay className="wr-scrim fixed inset-0 z-40 bg-ink/32 backdrop-blur-[8px]" />

@@ -150,6 +150,15 @@
     overscroll-behavior: none;
   }
 
+  /*
+   * The framed layout gives the shell a 24px top margin above 820px. Without a
+   * block formatting context that margin collapses out through <body> and adds
+   * 24px of document scroll to a page that should never scroll.
+   */
+  body {
+    display: flow-root;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
@@ -188,6 +197,17 @@
   border-radius: 2px;
   background: var(--color-line-2);
   opacity: 1;
+}
+
+/*
+ * A side panel is not draggable, so it gets no handle. This has to be unlayered
+ * too: Vaul's `[data-vaul-handle]{display:block}` would otherwise beat a
+ * `panel:hidden` utility.
+ */
+@media (min-width: 820px) {
+  [data-vaul-handle].wr-handle {
+    display: none;
+  }
 }
 
 [data-sonner-toast].wr-toast {
