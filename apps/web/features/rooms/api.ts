@@ -3,15 +3,16 @@ import { getBrowserClient } from '@/lib/supabase'
 import { SupabaseConfigError } from '@/lib/supabase/env'
 import { normaliseCode } from './code'
 import { ApiError, parseErrorEnvelope } from './errors'
-import { type Seat, seatSchema } from './schemas'
+import { type LeaveResult, leaveResultSchema, type Seat, seatSchema } from './schemas'
 
 /**
- * The two Edge Functions this workstream calls.
+ * The three Edge Functions this workstream calls.
  *
- * Both of them decide, server-side and without a race, things this client
+ * All of them decide, server-side and without a race, things this client
  * deliberately does not try to know: whether a code exists, whether a room has
- * room, and whether a name is free. Everything here does is ask well and hand
- * the answer to `resolveRoomsError`.
+ * room, whether a name is free, and whether the caller holds the seat they are
+ * asking to give up. Everything here does is ask well and hand the answer to
+ * `resolveRoomsError`.
  */
 
 /** Everything leaves here as an `ApiError`, so callers switch on one type. */
@@ -99,4 +100,24 @@ export async function joinRoom({ code, playerName }: JoinRoomInput): Promise<Sea
   return invoke('join-room', { code: normaliseCode(code), playerName }, (value) =>
     seatSchema.parse(value),
   )
+}
+
+export interface LeaveRoomInput {
+  roomId: string
+}
+
+/**
+ * `POST leave-room` — delete the caller's seat.
+ *
+ * **Irreversible, and destructive by design.** The `players` row goes, so the
+ * attempts hanging off it cascade with it: the leaver's scores in this room are
+ * gone, their locked name is free for someone else, and the seat opens up. Only
+ * call this behind a confirmation that says all three.
+ *
+ * There is no client-side delete to fall back on — `authenticated` has no delete
+ * grant on `players` — so this function is the only way out of a room, and the
+ * membership check inside it is what stops one player evicting another.
+ */
+export async function leaveRoom({ roomId }: LeaveRoomInput): Promise<LeaveResult> {
+  return invoke('leave-room', { roomId }, (value) => leaveResultSchema.parse(value))
 }

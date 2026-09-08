@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Player, Room } from '@wordroom/shared'
 import { useEffect, useMemo } from 'react'
 import { getBrowserClient } from '@/lib/supabase'
+import { fetchPuzzleStatuses } from './puzzle-status'
 import { fetchMembers, fetchMySeats, fetchRoom } from './queries'
 import { useSession } from './session'
 import { getActiveRoomId, setActiveRoomId } from './storage'
@@ -13,6 +14,9 @@ export const roomKeys = {
   seats: (userId: string) => ['rooms', 'seats', userId] as const,
   room: (roomId: string) => ['rooms', 'room', roomId] as const,
   members: (roomId: string) => ['rooms', 'members', roomId] as const,
+  puzzleStatus: (puzzleId: string) => ['rooms', 'puzzle-status', puzzleId] as const,
+  /** Prefix for every puzzle's statuses, for a realtime event to invalidate. */
+  puzzleStatuses: () => ['rooms', 'puzzle-status'] as const,
 }
 
 /** Every room this account has a seat in. Empty until the first name is locked. */
@@ -89,6 +93,11 @@ export function useRoom(roomId: string | null) {
  * something changed, and the query refetches through RLS. A realtime row carries
  * whatever columns the subscriber may select, and refetching keeps that decision
  * in one place.
+ *
+ * This one channel carries every live signal the room needs — arrivals,
+ * departures, and progress on the puzzle on screen — so `usePuzzleStatuses`
+ * below subscribes to nothing of its own. Three listeners on one socket, rather
+ * than a second subscription per sheet.
  */
 export function useMembers(roomId: string | null) {
   const { status } = useSession()
@@ -104,15 +113,43 @@ export function useMembers(roomId: string | null) {
     if (status !== 'ready' || !roomId) return
 
     const client = getBrowserClient()
+    const refreshMembers = () => {
+      void queryClient.invalidateQueries({ queryKey: roomKeys.members(roomId) })
+    }
+
     const channel = client
       .channel(`room-members:${roomId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: roomKeys.members(roomId) })
-        },
+        refreshMembers,
       )
+      /*
+       * Departures, unfiltered — and it has to be unfiltered.
+       *
+       * A DELETE payload carries only the replica identity, which is the primary
+       * key by default. `room_id` is not in it, so a `room_id=eq.<id>` filter has
+       * nothing to match and the event is dropped: with the filtered listener
+       * alone, everyone else's member list would keep a departed player on it
+       * until something else refetched.
+       *
+       * The payload is ignored entirely — this only says "ask again", and the
+       * refetch goes through `players_select_member`, so RLS still decides what
+       * comes back. The cost of not filtering is an occasional wasted refetch.
+       */
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'players' }, () => {
+        refreshMembers()
+        void queryClient.invalidateQueries({ queryKey: roomKeys.puzzleStatuses() })
+      })
+      /*
+       * Progress on whatever puzzle is on screen. `attempts` has no `room_id`
+       * column to filter on, so this is the same deal: a signal to refetch, never
+       * data to merge. Nothing off this socket is read — see `puzzle-status.ts`
+       * for why a payload from `attempts` is not something to trust.
+       */
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attempts' }, () => {
+        void queryClient.invalidateQueries({ queryKey: roomKeys.puzzleStatuses() })
+      })
       .subscribe()
 
     return () => {
@@ -121,4 +158,23 @@ export function useMembers(roomId: string | null) {
   }, [roomId, status, queryClient])
 
   return query
+}
+
+/**
+ * Where each member has got to on one puzzle — the member list's status column.
+ *
+ * No subscription of its own: the room channel in `useMembers` invalidates this
+ * query when an attempt changes, and this hook is only ever rendered alongside
+ * that one. `puzzleId` is null whenever there is no puzzle on screen (the lobby,
+ * or the game still loading), and then nothing is fetched and every member reads
+ * as `waiting`.
+ */
+export function usePuzzleStatuses(puzzleId: string | null) {
+  const { status } = useSession()
+
+  return useQuery({
+    queryKey: roomKeys.puzzleStatus(puzzleId ?? 'none'),
+    queryFn: () => fetchPuzzleStatuses(getBrowserClient(), puzzleId as string),
+    enabled: status === 'ready' && puzzleId !== null,
+  })
 }
