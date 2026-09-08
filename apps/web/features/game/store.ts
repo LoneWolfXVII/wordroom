@@ -9,9 +9,10 @@ import {
   type TimerMode,
 } from '@wordroom/shared'
 import { create } from 'zustand'
-import { type GameApi, GameApiError, getGameApi, type GuessResult } from './api'
+import { type GameApi, GameApiError, type GuessResult, getGameApi } from './api'
 import { isKnownWord, preloadGuessList } from './guess-list'
 import { accumulateKeyStates, type KeyStates, mergeKeyState } from './keys'
+import { prefersReducedMotion, STRUCT_MS, wait } from './motion'
 
 /**
  * The game store.
@@ -394,17 +395,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
     async nextPuzzle() {
       const state = get()
       if (state.puzzle === null) return
-      set({ resultOpen: false, boardPhase: 'out' })
-      await get().loadPuzzle(state.mode, state.puzzle.number + 1)
-      set({ boardPhase: 'in' })
+      await swapBoard(set, get().loadPuzzle(state.mode, state.puzzle.number + 1))
     },
 
     async setMode(mode) {
       const state = get()
       if (mode === state.mode) return
-      set({ resultOpen: false, boardPhase: 'out' })
-      await get().loadPuzzle(mode, state.numbers[mode])
-      set({ boardPhase: 'in' })
+      await swapBoard(set, get().loadPuzzle(mode, state.numbers[mode]))
     },
 
     applySettings(settings) {
@@ -421,6 +418,22 @@ export const useGameStore = create<GameStore>()((set, get) => {
     },
   }
 })
+
+/**
+ * Slide the finished board out, load, slide the new one in.
+ *
+ * The wait is a floor, not a delay: without it a cached or very fast response
+ * would cut the outgoing board off mid-slide and the swap would read as a
+ * flicker. With motion reduced there is no slide to protect, so there is no wait.
+ */
+async function swapBoard(
+  set: (partial: Partial<GameStore>) => void,
+  loading: Promise<void>,
+): Promise<void> {
+  set({ resultOpen: false, boardPhase: 'out' })
+  await Promise.all([loading, wait(prefersReducedMotion() ? 0 : STRUCT_MS)])
+  set({ boardPhase: 'in' })
+}
 
 /** Codes that mean "that was not a guess" — the row is not consumed. */
 function isRejection(code: string): boolean {
