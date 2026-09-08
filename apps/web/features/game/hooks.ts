@@ -5,7 +5,7 @@ import { toast } from '@/components/ui'
 import { BACKSPACE_KEY, ENTER_KEY, type KeyValue } from './keys'
 import { keyColourMs, rowRevealMs, settleMs } from './motion'
 import { useGameStore } from './store'
-import { type Clock, computeClock, TICK_MS } from './timer'
+import { type Clock, computeClock, TICK_MS, timeoutRetryDelayMs } from './timer'
 
 /**
  * Physical keyboard input, without a hidden `<input>`.
@@ -91,9 +91,24 @@ export function useClock(): Clock {
     now,
   })
 
+  /*
+   * A failed timeout puts the board back to `playing` with the clock still at
+   * zero — the state that asked for the timeout. `expired` therefore flips
+   * false (while the request is out) and true again (when it fails), and with
+   * nothing between the two this effect re-sent the request the instant the
+   * previous one failed. Offline, that was a request and a toast every few
+   * milliseconds, and the tab froze. Attempts are spaced by `TIMEOUT_RETRY_MS`.
+   */
   const expired = clock.expired && status === 'playing'
+  const lastTimeoutAt = useRef<number | null>(null)
   useEffect(() => {
-    if (expired) void timeout()
+    if (!expired) return
+    const delay = timeoutRetryDelayMs(lastTimeoutAt.current, Date.now())
+    const id = setTimeout(() => {
+      lastTimeoutAt.current = Date.now()
+      void timeout()
+    }, delay)
+    return () => clearTimeout(id)
   }, [expired, timeout])
 
   return clock

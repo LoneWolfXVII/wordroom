@@ -5,6 +5,8 @@ import {
   clockLabel,
   computeClock,
   formatClock,
+  TIMEOUT_RETRY_MS,
+  timeoutRetryDelayMs,
 } from './timer'
 
 /** See keys.test.mts for why these files are `.mts`. */
@@ -121,5 +123,24 @@ describe('clampPerPuzzleSeconds', () => {
     expect(clampPerPuzzleSeconds(10)).toBe(30)
     expect(clampPerPuzzleSeconds(900)).toBe(600)
     expect(clampPerPuzzleSeconds(210)).toBe(210)
+  })
+})
+
+describe('timeoutRetryDelayMs', () => {
+  // A failed timeout returns the board to `playing` at zero, which re-arms the
+  // same effect. Without spacing, the clock hook sent 1,611 timeout requests in
+  // ten seconds while offline and froze the tab.
+  it('sends the first timeout immediately', () => {
+    expect(timeoutRetryDelayMs(null, START)).toBe(0)
+  })
+
+  it('waits out the retry interval after a failed attempt', () => {
+    expect(timeoutRetryDelayMs(START, START)).toBe(TIMEOUT_RETRY_MS)
+    expect(timeoutRetryDelayMs(START, START + 1_000)).toBe(TIMEOUT_RETRY_MS - 1_000)
+  })
+
+  it('is immediate again once the interval has passed', () => {
+    expect(timeoutRetryDelayMs(START, START + TIMEOUT_RETRY_MS)).toBe(0)
+    expect(timeoutRetryDelayMs(START, START + TIMEOUT_RETRY_MS * 10)).toBe(0)
   })
 })
