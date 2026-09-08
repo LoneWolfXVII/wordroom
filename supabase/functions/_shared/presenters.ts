@@ -66,19 +66,51 @@ export function toAttempt(row: AttemptRow): Attempt {
 }
 
 /**
+ * Marks are a closed, public vocabulary. They are structure, not data — the
+ * client knows all three strings before it ever sends a guess. Two of them
+ * ("absent", "present") and one more ("correct") are also answers, so they are
+ * exempt where marks live and nowhere else.
+ */
+const MARK_WORDS: ReadonlySet<string> = new Set(['correct', 'present', 'absent'])
+
+/**
+ * UUIDs are hex, and two answers ("decade", "facade") are spellable in hex, so
+ * an id can contain an answer by pure chance. Blanked before the check.
+ */
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
+
+function leaks(value: unknown, answer: string, inMarks: boolean): boolean {
+  if (typeof value === 'string') {
+    const text = value.toLowerCase()
+    if (inMarks && MARK_WORDS.has(text)) return false
+    return text.replaceAll(UUID, '<id>').includes(answer)
+  }
+  if (Array.isArray(value)) return value.some((item) => leaks(item, answer, inMarks))
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value).some(([key, item]) => leaks(item, answer, key === 'marks'))
+  }
+  // Numbers, booleans, null: nothing a word can hide in.
+  return false
+}
+
+/**
  * Last line of defence. Cheap enough to run on every response that is supposed
  * to be answer-free, and it turns a future refactor's mistake into a 500 here
  * rather than a spoiler in someone's network tab.
+ *
+ * It walks *values*, not the serialised body. Scanning `JSON.stringify(body)`
+ * reads as the stricter check and is in fact broken: the JSON text carries the
+ * field names and the boolean literals too, and eleven answers in the
+ * 4,864-word bank are substrings of it — `false`, `solve`, `guess`, `tempt`,
+ * `absent`, `puzzle`, `remain`, `finish`, `correct`, `present`, `attempt`, one
+ * for every mode. Those rooms answered every guess with a 500, and `false` is
+ * the worst of them, because `"solved":false` is in every unfinished body.
+ *
+ * Keys are written here and can never carry an answer; only values can. So only
+ * values are checked — which is also the stricter reading of the rule.
  */
 export function assertAnswerAbsent(body: unknown, answer: string): void {
-  // UUIDs are hex, and two answers ("decade", "facade") are spellable in hex.
-  // Without stripping ids first, a body would very occasionally 500 because a
-  // random uuid happened to contain the word.
-  const haystack = JSON.stringify(body)
-    .toLowerCase()
-    .replaceAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<id>')
-
-  if (haystack.includes(answer.toLowerCase())) {
+  if (leaks(body, answer.toLowerCase(), false)) {
     console.error('refused to send a response containing the puzzle answer')
     throw new AppError('internal', 500, 'Something went wrong. Try again.')
   }
