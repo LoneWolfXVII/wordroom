@@ -38,6 +38,7 @@ export function GameRoute() {
   const mode = useGameStore((s) => s.mode)
   const puzzle = useGameStore((s) => s.puzzle)
   const status = useGameStore((s) => s.status)
+  const reset = useGameStore((s) => s.reset)
 
   const env = isSupabaseConfigured() ? supabaseEnv() : null
 
@@ -111,7 +112,19 @@ export function GameRoute() {
         showModes={false}
       />
 
-      <RoomSheet open={roomOpen} onOpenChange={setRoomOpen} />
+      {/*
+       * The room sheet needs two things only the game knows: which puzzle is on
+       * screen, so the member list can say who has finished it, and somewhere to
+       * put the store back to nothing when a player leaves. The store is module
+       * scoped and outlives this route, so without the reset the next room they
+       * join would open on this room's puzzle.
+       */}
+      <RoomSheet
+        open={roomOpen}
+        onOpenChange={setRoomOpen}
+        puzzleId={puzzle?.id ?? null}
+        onLeft={reset}
+      />
 
       <LeaderboardSheet
         open={boardOpen}

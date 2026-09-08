@@ -50,3 +50,20 @@ export const seatSchema = z.object({
 
 /** A room and the seat the caller holds in it. */
 export type Seat = z.infer<typeof seatSchema>
+
+/**
+ * `leave-room` 200 — the seat that was deleted.
+ *
+ * Four scalars. There is no room or player object here on purpose: after this
+ * call both are gone, and handing back a `Player` that no longer exists would
+ * invite a caller to put it back in the cache.
+ */
+export const leaveResultSchema = z.object({
+  roomId: z.string(),
+  playerId: z.string(),
+  playerName: z.string(),
+  /** The room's host seat was this one, so the room now has no host. */
+  wasHost: z.boolean(),
+})
+
+export type LeaveResult = z.infer<typeof leaveResultSchema>

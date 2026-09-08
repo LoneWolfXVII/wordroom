@@ -16,7 +16,12 @@
  *   - `useActiveSeat()` gives `{ room, player }`: the room id for `get-puzzle`
  *     and the player id for attribution. `null` while it loads.
  *   - `<RoomButton room={room} onClick={...} />` is the header's `.roombtn`, and
- *     `<RoomSheet open onOpenChange />` is what it opens.
+ *     `<RoomSheet open onOpenChange />` is what it opens. Two optional props go
+ *     with it, both because only the game knows the answer: `puzzleId`, which
+ *     fills the member list's "solved" / "playing" column, and `onLeft`, which
+ *     fires once a player has left. **Wire `onLeft` to the game store's
+ *     `reset()`** — the store is module scoped and outlives the route, so
+ *     without it the next room opens on the last room's puzzle.
  *   - `<SaveProgressNudge />` goes at the bottom of the result sheet and takes no
  *     props. It decides for itself whether this is its one showing; there is no
  *     "first result" flag to pass.
@@ -26,10 +31,15 @@
  * **Workstream 4 (leaderboard + settings).**
  *
  *   - `useMembers(roomId)` is the room's roster, kept live off the `players`
- *     realtime publication. Names come from here; they never change.
- *   - `<MemberList status={...} />` takes a per-player caption function, which is
- *     the slot for the prototype's "solved" / "playing" column. That state lives
- *     in `attempts`, which is yours.
+ *     realtime publication. Names come from here; they never change. Its channel
+ *     also carries the room's `attempts` events, so `usePuzzleStatuses` rides on
+ *     it rather than opening a second subscription — if you need another live
+ *     signal for this room, add a listener there.
+ *   - `<MemberList statuses={...} />` fills the prototype's "solved" / "playing"
+ *     column, *alongside* the you/host markers rather than instead of them.
+ *     `usePuzzleStatuses(puzzleId)` builds the map, reading `attempts` through
+ *     your `ATTEMPT_PUBLIC_SELECT` allowlist and `narrowAttempt` guard. It never
+ *     asks for `guesses`.
  *   - `<SignInPanel returnPath={...} />` is the settings sheet's Account row
  *     action. `useSession()` gives `isAnonymous` and `email` for its subtitle.
  *
@@ -37,7 +47,14 @@
  * here has any reason to.
  */
 
-export { type CreateRoomInput, createRoom, type JoinRoomInput, joinRoom } from './api'
+export {
+  type CreateRoomInput,
+  createRoom,
+  type JoinRoomInput,
+  joinRoom,
+  type LeaveRoomInput,
+  leaveRoom,
+} from './api'
 export { AuthCallbackScreen } from './auth-callback-screen'
 export { codeFromShareInput, isCompleteCode, normaliseCode } from './code'
 export { CreateRoomScreen } from './create-room-screen'
@@ -68,11 +85,19 @@ export {
   ROOM_NAME_MIN,
 } from './names'
 export { RoomsProvider } from './provider'
+export {
+  attemptStatus,
+  isFinished,
+  type MemberPuzzleStatus,
+  type PuzzleStatusMap,
+  statusesByPlayer,
+  statusLabel,
+} from './puzzle-status'
 export { RoomButton, RoomSheet } from './room-sheet'
 export { GAME_PATH, joinPathForCode } from './routes'
 export { RulesSheet } from './rules-sheet'
 export { SaveProgressNudge } from './save-progress-nudge'
-export type { Seat } from './schemas'
+export type { LeaveResult, Seat } from './schemas'
 export { SessionProvider, type SessionState, type SessionStatus, useSession } from './session'
 export { copyText, type ShareOutcome, shareRoom, shareUrl } from './share'
 export { SignInPanel, type SignInPanelProps } from './sign-in-panel'
@@ -82,5 +107,6 @@ export {
   useActiveSeat,
   useMembers,
   useMySeats,
+  usePuzzleStatuses,
   useRoom,
 } from './use-rooms'
