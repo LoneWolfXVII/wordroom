@@ -69,15 +69,21 @@ export function RoomSheet({
     else if (outcome === 'failed') toast('Could not share')
   }
 
-  /** The seat is gone, whether we deleted it just now or someone else already had. */
-  const afterLeaving = () => {
+  /**
+   * The seat is gone, whether we deleted it just now or someone else already had.
+   *
+   * The order is load-bearing. Dropping the seats query has to come *before*
+   * `onLeft`, because `onLeft` clears the game store — and a null puzzle with a
+   * still-cached seat is exactly the state in which the game route fetches the
+   * next puzzle. That request would go out for a room this account was just
+   * removed from and come back 403.
+   */
+  const afterLeaving = async () => {
     setActiveRoomId(null)
-    onLeft?.()
     setConfirming(false)
-    // Navigate before invalidating, so the game route is on its way out rather
-    // than re-rendering for one frame with no seat.
     router.replace('/')
-    void queryClient.invalidateQueries({ queryKey: ['rooms'] })
+    await queryClient.invalidateQueries({ queryKey: ['rooms'] })
+    onLeft?.()
     toast('Left room')
   }
 
@@ -87,14 +93,14 @@ export function RoomSheet({
 
     try {
       await leaveRoom({ roomId: room.id })
-      afterLeaving()
+      await afterLeaving()
     } catch (error) {
       const resolved = resolveRoomsError(error)
 
       // No seat to give up. A double tap, or a second device that already left —
       // the outcome the player asked for is the outcome they have.
       if (resolved.code === 'not_a_member') {
-        afterLeaving()
+        await afterLeaving()
         return
       }
 

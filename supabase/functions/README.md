@@ -160,8 +160,8 @@ is a `service_role` function, and the membership check is doing the authorisatio
 otherwise do. A caller with no seat in the room and a caller naming a room that does not exist both
 get `not_a_member`, so room ids cannot be probed.
 
-Rejoining afterwards is a normal `join-room`, and the name is available again — to them or to
-anyone else.
+Rejoining afterwards is a normal `join-room`, and the name is available again — to them or to anyone
+else.
 
 Errors: `not_a_member` (403). Rate limit: 20 per hour per user.
 
