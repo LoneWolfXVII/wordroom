@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#F5F1EA" />
+    <title>Offline · Wordroom</title>
+    <!--
+      The service worker's failure branch: what a player sees when a navigation
+      cannot reach the network.
+
+      It is a static file rather than a route because it has to render with the
+      network already gone, which rules out anything Next would have to fetch.
+      That also means it cannot read the Tailwind tokens or the fingerprinted
+      Geist file, so the four hexes below are written out and the type falls back
+      to the same system stack `--font-sans` names. They mirror CLAUDE.md's token
+      table; change that first.
+    -->
+    <style>
+      :root {
+        --bg: #f5f1ea;
+        --ink: #1f1c18;
+        --ink-2: #5c554c;
+        --accent: #2f5d62;
+        --accent-pressed: #264d51;
+        --on-accent: #f5f1ea;
+        --correct: #5b8c5a;
+        --on-tile: #f5f1ea;
+      }
+
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, 'Segoe UI', Inter, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      main {
+        max-width: 30ch;
+        text-align: center;
+      }
+
+      .tile {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 24px;
+        border-radius: 6px;
+        background: var(--correct);
+        color: var(--on-tile);
+        display: grid;
+        place-items: center;
+        font-size: 30px;
+        font-weight: 600;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      p {
+        margin: 8px 0 24px;
+        font-size: 15px;
+        line-height: 1.45;
+        color: var(--ink-2);
+      }
+
+      button {
+        width: 100%;
+        min-height: 48px;
+        padding: 0 20px;
+        border: 0;
+        border-radius: 10px;
+        background: var(--accent);
+        color: var(--on-accent);
+        font: inherit;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      button:active {
+        background: var(--accent-pressed);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /*
+       * The page has exactly one transition, so this names it rather than
+       * reaching for a global `!important` the way globals.css has to.
+       */
+      @media (prefers-reduced-motion: reduce) {
+        button {
+          transition-duration: 0.01ms;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="tile" aria-hidden="true">W</div>
+      <h1>Reconnect to play</h1>
+      <p>
+        Wordroom needs a connection to score a guess. Your room, your name and
+        your streak are all safe — they live on the server.
+      </p>
+      <button type="button" id="retry">Try again</button>
+    </main>
+    <script>
+      const retry = document.getElementById('retry')
+      retry.addEventListener('click', () => location.reload())
+      // Coming back online is the answer to the only question this page asks,
+      // so it does not wait to be told twice.
+      addEventListener('online', () => location.reload())
+    </script>
+  </body>
+</html>
