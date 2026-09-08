@@ -4,12 +4,12 @@ import { codeFromShareInput, isCompleteCode, normaliseCode } from './code'
 
 describe('normaliseCode', () => {
   it('uppercases, because codes are read aloud and typed either way', () => {
-    expect(normaliseCode('khx7')).toBe('KHX7')
+    expect(normaliseCode('khxb')).toBe('KHXB')
   })
 
   it('drops separators people add when reading a code out', () => {
-    expect(normaliseCode('K H X 7')).toBe('KHX7')
-    expect(normaliseCode('k-h-x-7')).toBe('KHX7')
+    expect(normaliseCode('K H X B')).toBe('KHXB')
+    expect(normaliseCode('k-h-x-b')).toBe('KHXB')
   })
 
   it('drops the four look-alikes the alphabet excludes', () => {
@@ -45,12 +45,12 @@ describe('normaliseCode', () => {
 describe('isCompleteCode', () => {
   it('is true only at exactly the code length', () => {
     expect(isCompleteCode('KHX')).toBe(false)
-    expect(isCompleteCode('KHX7')).toBe(true)
+    expect(isCompleteCode('KHXB')).toBe(true)
   })
 
   it('judges the normalised value, not the raw one', () => {
     // Five characters typed, four usable: this is ready to send.
-    expect(isCompleteCode('K H X 7')).toBe(true)
+    expect(isCompleteCode('K H X B')).toBe(true)
     // Four characters typed, three usable: it is not.
     expect(isCompleteCode('KHXO')).toBe(false)
   })
@@ -58,21 +58,21 @@ describe('isCompleteCode', () => {
 
 describe('codeFromShareInput', () => {
   it('reads the code out of a full share URL', () => {
-    expect(codeFromShareInput('https://wordroom.example.dev/r/KHX7')).toBe('KHX7')
+    expect(codeFromShareInput('https://wordroom.example.dev/r/KHXB')).toBe('KHXB')
   })
 
   it('reads it out of a bare path, and uppercases', () => {
-    expect(codeFromShareInput('/r/khx7')).toBe('KHX7')
+    expect(codeFromShareInput('/r/khxb')).toBe('KHXB')
   })
 
   it('ignores a query string or fragment after the code', () => {
-    expect(codeFromShareInput('https://wordroom.example.dev/r/KHX7?utm_source=chat')).toBe('KHX7')
-    expect(codeFromShareInput('https://wordroom.example.dev/r/KHX7#top')).toBe('KHX7')
+    expect(codeFromShareInput('https://wordroom.example.dev/r/KHXB?utm_source=chat')).toBe('KHXB')
+    expect(codeFromShareInput('https://wordroom.example.dev/r/KHXB#top')).toBe('KHXB')
   })
 
   it('accepts a bare code', () => {
-    expect(codeFromShareInput('KHX7')).toBe('KHX7')
-    expect(codeFromShareInput('  khx7 ')).toBe('KHX7')
+    expect(codeFromShareInput('KHXB')).toBe('KHXB')
+    expect(codeFromShareInput('  khxb ')).toBe('KHXB')
   })
 
   it('refuses a URL with no /r/ segment rather than inventing a code', () => {
@@ -92,6 +92,6 @@ describe('codeFromShareInput', () => {
   })
 
   it('takes the code from the /r/ segment even when the host looks codelike', () => {
-    expect(codeFromShareInput('https://ABCD.example.dev/r/KHX7')).toBe('KHX7')
+    expect(codeFromShareInput('https://ABCD.example.dev/r/KHXB')).toBe('KHXB')
   })
 })

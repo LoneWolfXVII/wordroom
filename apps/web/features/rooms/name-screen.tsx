@@ -1,6 +1,7 @@
 'use client'
 
 import { useQueryClient } from '@tanstack/react-query'
+import type { Player } from '@wordroom/shared'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
@@ -23,6 +24,7 @@ import { resolveRoomsError } from './errors'
 import { checkPlayerName, PLAYER_NAME_MAX, playerNameProblemMessage } from './names'
 import { useSession } from './session'
 import { getPendingSeat, type PendingSeat, setActiveRoomId, setPendingSeat } from './storage'
+import { roomKeys } from './use-rooms'
 
 const NAME_FIELD_ID = 'playerName'
 
@@ -62,7 +64,7 @@ function focusName(): void {
 export function NameScreen() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { status: sessionStatus, error: sessionError } = useSession()
+  const { status: sessionStatus, error: sessionError, userId } = useSession()
 
   const [pending, setPending] = useState<PendingSeat | null | undefined>(undefined)
   const [value, setValue] = useState('')
@@ -102,6 +104,18 @@ export function NameScreen() {
 
       setActiveRoomId(seat.room.id)
       setPendingSeat(null)
+
+      // Seed the cache with what the server just told us, so the lobby has the
+      // seat the moment it mounts rather than after a round trip. The
+      // invalidate below still runs, to pick up anyone who joined meanwhile.
+      if (userId) {
+        queryClient.setQueryData(roomKeys.seats(userId), (rows: Player[] | undefined) => [
+          ...(rows ?? []).filter((row) => row.id !== seat.player.id),
+          seat.player,
+        ])
+      }
+      queryClient.setQueryData(roomKeys.room(seat.room.id), seat.room)
+
       await queryClient.invalidateQueries({ queryKey: ['rooms'] })
       setConfirming(false)
       router.replace('/lobby')

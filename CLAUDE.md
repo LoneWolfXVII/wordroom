@@ -144,12 +144,10 @@ No cartoon illustration, no confetti, no gradients.
   breaks it and so does a skip. Modes never interact.
 - **Sheets become a right panel at `--breakpoint-panel` (820px)**, per the spec.
   The prototype shows a centred 520px card there instead; the spec wins.
-- **Room codes** are 4 characters from A–Z and 2–9, minus `0`/`O` and `1`/`I`.
-  `CODE_ALPHABET` in `@wordroom/shared` and the `rooms_code_format` constraint
-  both encode this. **Open question:** the spec says "4-letter code (A–Z minus O
-  and I)" but the build plan says "codes exclude 0/O/1/I" and its share example
-  is `KHX7`. The alphabet above is the superset, so it validates either policy —
-  narrow it in both places if letters-only wins.
+- **Room codes** are 4 letters from A–Z minus `I` and `O`, so nothing can be
+  misread as `1` or `0`. `CODE_ALPHABET` in `@wordroom/shared` and the
+  `rooms_code_format` constraint both encode this — change them together.
+  (Settled after the superset alphabet generated `7764` in a real run.)
 - **Capacity is 8**, enforced by a trigger, not by application code.
 - **Weekly boards reset Monday 00:00 in the room's timezone**, from
   `rooms.timezone`. All-time persists.

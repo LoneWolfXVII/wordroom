@@ -59,7 +59,12 @@ export function useActiveSeat(): {
 
   return {
     seat: player && room.data ? { room: room.data, player } : null,
-    isLoading: seats.isPending || (player !== null && room.isPending),
+    // `isPending` is false while a *refetch* runs over already-cached data, so
+    // a screen that redirects on `!hasAnySeat` would fire on the stale empty
+    // array in the window between locking a name and the invalidated seats
+    // query coming back. `isFetching` closes that window: callers only act on
+    // a settled answer.
+    isLoading: seats.isPending || seats.isFetching || (player !== null && room.isPending),
     hasAnySeat: (seats.data ?? []).length > 0,
   }
 }

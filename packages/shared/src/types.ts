@@ -21,15 +21,17 @@ export type Mark = 'correct' | 'present' | 'absent'
 export type MarkRow = readonly Mark[]
 
 /**
- * Room-code alphabet: A-Z and 2-9, minus the four characters that get misread
- * out loud or in a chat window - 0/O and 1/I.
+ * Room-code alphabet: A-Z minus the two letters that get misread out loud or in
+ * a chat window — O (as zero) and I (as one).
  *
- * NOTE: the spec says "4-letter code (A-Z minus O and I)" while the build plan
- * says "codes exclude 0/O/1/I" and its share example is `KHX7`. This alphabet is
- * the superset, so it accepts either policy; narrow it to letters here and in
- * the `rooms_code_format` constraint if letters-only is the decision.
+ * Letters only, deliberately. The spec says "4-letter code (A-Z minus O and I)";
+ * the build plan's "codes exclude 0/O/1/I" is satisfied by this too, since a
+ * letters-only alphabet contains no 0 or 1 to exclude. Allowing digits produced
+ * real codes like `7764` — an all-numeric code for a word game reads as a bug,
+ * and it is the kind of thing a player reads aloud to a friend. 24^4 is still
+ * 331,776 codes.
  */
-export const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
 export const CODE_LENGTH = 4
 export const MAX_PLAYERS = 8
 
