@@ -165,7 +165,7 @@ No cartoon illustration, no confetti, no gradients.
 
 ```bash
 pnpm install
-pnpm dev              # apps/web on :3000
+pnpm dev              # apps/web on :3900
 pnpm typecheck        # tsc --noEmit across the workspace
 pnpm test             # vitest
 pnpm lint             # biome check

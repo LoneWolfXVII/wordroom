@@ -19,8 +19,8 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://wordroom.nischalgupta.dev"]
+site_url = "http://localhost:3900"
+additional_redirect_urls = ["http://localhost:3900/auth/callback", "https://wordroom.nischalgupta.dev/auth/callback"]
 jwt_expiry = 3600
 enable_signup = true
 
