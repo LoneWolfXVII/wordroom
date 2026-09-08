@@ -209,6 +209,23 @@
   animation-duration: var(--duration-struct);
 }
 
+/*
+ * Vaul draws a 200%-wide `::after` just outside the panel, in the drag
+ * direction, so an overdrag never reveals the page behind it. That filler is
+ * invisible only while the panel is flush to the viewport edge — and from
+ * `--breakpoint-panel` up ours is inset 24px, so 24px of the filler showed as a
+ * pale strip down the right of the sheet.
+ *
+ * At that size the panel is not draggable, so the filler is covering nothing.
+ * Removed there and left alone on the phone, where the bottom sheet does drag.
+ * Unlayered and at (0,2,0) to beat Vaul's own unlayered (0,1,0) rule.
+ */
+@media (min-width: 820px) {
+  [data-vaul-drawer].wr-sheet::after {
+    content: none;
+  }
+}
+
 /* The prototype's `.handle`: 36x4, --line-2, no hover fade. */
 [data-vaul-handle].wr-handle {
   width: 36px;
