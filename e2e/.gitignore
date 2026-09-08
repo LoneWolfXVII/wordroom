@@ -1,0 +1,4 @@
+# Playwright output: traces, videos, the HTML report, and the log of rooms a
+# run created on the live project.
+.artifacts/
+.report/
