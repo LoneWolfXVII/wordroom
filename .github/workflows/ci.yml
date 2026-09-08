@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  verify:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  seed:
+    name: word bank seed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The seed is generated, not committed. Fail here rather than at deploy
+      # time if the wordlists drift out of shape.
+      - name: Validate word lists
+        run: node supabase/scripts/seed-word-bank.mjs --check
+
+  answers:
+    name: answers stay server-side
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # A blunt guard, but it catches the obvious regressions. `packages/shared`
+      # is exempt: it defines PuzzleSecret, the server-only shape. Anything in
+      # apps/web that genuinely needs the field (the reveal path) must say so
+      # with a trailing `// answers-ok: <why>`. Workstream 6 adds the Playwright
+      # assertion that no answer appears on the wire.
+      - name: No answer field in app code
+        run: |
+          hits=$(grep -rn --include='*.ts' --include='*.tsx' \
+                   -E "\\.answer\\b" apps/web | grep -v 'answers-ok:' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::app code reads a puzzle answer"
+            exit 1
+          fi
+
+      - name: answer column is never granted
+        run: |
+          if grep -nE "^\s*grant\b.*\banswer\b" supabase/migrations/*.sql; then
+            echo "::error::a migration grants the answer column"
+            exit 1
+          fi
+          grep -q "revoke all on public.puzzles from anon, authenticated" \
+            supabase/migrations/20260908000200_rls.sql

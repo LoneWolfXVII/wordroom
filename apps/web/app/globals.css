@@ -1,0 +1,135 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Every hex below is copied verbatim from the `:root` block of
+ * docs/wordroom-screens.html — the prototype is the source of truth, so change
+ * it there first. Light mode only in v1; there is no dark variant.
+ */
+@theme {
+  /* surfaces + ink */
+  --color-bg: #f5f1ea;
+  --color-surface: #fbf9f5;
+  --color-surface-2: #efeae1;
+  --color-ink: #1f1c18;
+  --color-ink-2: #5c554c;
+  --color-muted: #8a8177;
+  --color-line: #e3dcd0;
+  --color-line-2: #cfc6b8;
+
+  /* accent */
+  --color-accent: #2f5d62;
+  --color-accent-soft: #e4ecec;
+  --color-on-accent: #f5f1ea;
+  /* pressed state of a primary button */
+  --color-accent-pressed: #264d51;
+
+  /* tiles + keyboard */
+  --color-correct: #5b8c5a;
+  --color-present: #c9a227;
+  --color-absent: #a9a196;
+  --color-key: #eae4da;
+  --color-key-pressed: #ded6c9;
+  --color-on-tile: #f5f1ea;
+
+  /* radii — prototype --r-s / --r-m / --r-l */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 18px;
+
+  /* elevation — prototype --sh-1 / --sh-2 / --sh-3 */
+  --shadow-sm: 0 1px 2px rgba(31, 28, 24, 0.06);
+  --shadow-md: 0 8px 24px -8px rgba(31, 28, 24, 0.18);
+  --shadow-lg: 0 24px 48px -16px rgba(31, 28, 24, 0.28);
+
+  /* motion — 120ms micro, 200ms state, 350ms structural, 600ms reveal */
+  --duration-micro: 120ms;
+  --duration-state: 200ms;
+  --duration-struct: 350ms;
+  --duration-reveal: 600ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* board metrics */
+  --size-tile: 56px;
+  --size-gap: 6px;
+
+  /* Geist, wired up by next/font in app/layout.tsx */
+  --font-sans: var(--font-geist), -apple-system, 'Segoe UI', Inter, sans-serif;
+}
+
+/*
+ * Prototype aliases. Markup lifted straight out of wordroom-screens.html keeps
+ * working without a find-and-replace; new code should prefer Tailwind utilities.
+ */
+:root {
+  --bg: var(--color-bg);
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-2);
+  --ink: var(--color-ink);
+  --ink-2: var(--color-ink-2);
+  --muted: var(--color-muted);
+  --line: var(--color-line);
+  --line-2: var(--color-line-2);
+  --accent: var(--color-accent);
+  --accent-soft: var(--color-accent-soft);
+  --on-accent: var(--color-on-accent);
+  --correct: var(--color-correct);
+  --present: var(--color-present);
+  --absent: var(--color-absent);
+  --key: var(--color-key);
+  --on-tile: var(--color-on-tile);
+  --d-micro: var(--duration-micro);
+  --d-state: var(--duration-state);
+  --d-struct: var(--duration-struct);
+  --d-reveal: var(--duration-reveal);
+  --e-out: var(--ease-out);
+  --e-in: var(--ease-in);
+  --e-spring: var(--ease-spring);
+  --r-s: var(--radius-sm);
+  --r-m: var(--radius-md);
+  --r-l: var(--radius-lg);
+  --sh-1: var(--shadow-sm);
+  --sh-2: var(--shadow-md);
+  --sh-3: var(--shadow-lg);
+  --tile: var(--size-tile);
+  --gap: var(--size-gap);
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    height: 100%;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Numbers, codes and timers never reflow as they tick. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Motion answers an action; nothing here may be load-bearing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

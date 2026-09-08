@@ -1,0 +1,36 @@
+project_id = "wordroom"
+
+[db]
+port = 54322
+major_version = 17
+
+[api]
+enabled = true
+port = 54321
+# Only `public` is exposed over PostgREST. Anything that must never be reachable
+# from a browser belongs outside this list.
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://wordroom.nischalgupta.dev"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+# Players start anonymous and upgrade to a real account after their first result.
+[auth.sessions]
+inactivity_timeout = "0s"
+
+[realtime]
+enabled = true
