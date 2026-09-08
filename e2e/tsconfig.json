@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // `page.evaluate` callbacks run in the browser, so this needs both the DOM
+    // and Node's globals in scope.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // @types/node lives in apps/web, not at the root — the root manifest is
+    // shared with two other workstreams and gains nothing but Playwright here.
+    "typeRoots": ["../apps/web/node_modules/@types", "../node_modules/@types"],
+    "types": ["node"],
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["**/*.ts", "**/*.mjs", "../playwright.config.ts"]
+}

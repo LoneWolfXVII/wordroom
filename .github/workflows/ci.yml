@@ -122,3 +122,109 @@ jobs:
           fi
           grep -q "revoke all on public.puzzles from anon, authenticated" \
             supabase/migrations/20260908000200_rls.sql
+
+  # ---------------------------------------------------------------------------
+  # Playwright — workstream 6.
+  #
+  # The suite drives a real Supabase project: anonymous sign-ins, five Edge
+  # Functions, Postgres and realtime. There is no fixture backend to point it
+  # at, so it needs credentials, and credentials only ever come from secrets.
+  # Without them the job skips and the repo stays green, rather than failing on
+  # every fork and on every pull request opened before the secrets exist.
+  #
+  # Add these two repository secrets to switch it on:
+  #   E2E_SUPABASE_URL       the project URL, https://<ref>.supabase.co
+  #   E2E_SUPABASE_ANON_KEY  the anon / publishable key
+  #
+  # And optionally, to let CI tidy up after itself:
+  #   E2E_SUPABASE_SERVICE_ROLE_KEY   read only by e2e/scripts/cleanup.mjs
+  #
+  # The service-role key is never written to a file and never reaches apps/web.
+  # ---------------------------------------------------------------------------
+  e2e-secrets:
+    name: e2e credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      # A job-level `if:` cannot read the secrets context, so the question is
+      # answered in a step and consumed as an output. Only the boolean escapes.
+      - id: check
+        env:
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$E2E_SUPABASE_URL" ] && [ -n "$E2E_SUPABASE_ANON_KEY" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::E2E_SUPABASE_URL / E2E_SUPABASE_ANON_KEY are not set - skipping Playwright.'
+          fi
+
+  e2e:
+    name: playwright e2e
+    needs: e2e-secrets
+    # Pull requests only. Every run creates real rooms in a real project, and
+    # nothing can delete them from the client, so running it again on the merge
+    # commit would double the litter for no extra signal.
+    if: github.event_name == 'pull_request' && needs.e2e-secrets.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # `next build` inlines NEXT_PUBLIC_* at build time, so the app needs them
+      # on disk. Written from secrets, never committed — .gitignore covers .env.*
+      - name: Write app env
+        run: |
+          {
+            printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$NEXT_PUBLIC_SUPABASE_URL"
+            printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          } > apps/web/.env.local
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # The suite serves this build rather than `next dev`; see the webServer
+      # block in playwright.config.ts.
+      - name: Build
+        run: pnpm build
+
+      - name: Playwright
+        run: pnpm test:e2e
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/.report
+          retention-days: 7
+
+      # Best effort, and never the reason a pull request goes red. Rooms younger
+      # than two hours are left alone so a concurrent run is not disturbed.
+      - name: Clean up old test rooms
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo '::notice::E2E_SUPABASE_SERVICE_ROLE_KEY not set - test rooms are left in place.'
+            exit 0
+          fi
+          node e2e/scripts/cleanup.mjs --delete
