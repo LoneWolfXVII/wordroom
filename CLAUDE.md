@@ -87,6 +87,7 @@ is the source of truth: change it first, then mirror the hex here and in
 | `--key` | `bg-key` | `#EAE4DA` | Unused keyboard key |
 | — | `bg-key-pressed` | `#DED6C9` | Key `:active` |
 | `--on-tile` | `text-on-tile` | `#F5F1EA` | Text on a coloured tile |
+| — | `text-danger` | `#A24B3A` | Leave room, "name taken". Used inline in the prototype but absent from its `:root`; tokenised here so it is not hardcoded four times. |
 
 The Rules page must name these three swatches exactly as the tiles do: correct,
 present, absent.
@@ -103,6 +104,7 @@ present, absent.
 | `--sh-3` | `shadow-lg` | `0 24px 48px -16px rgba(31,28,24,.28)` |
 | `--tile` | `--size-tile` | `56px` |
 | `--gap` | `--size-gap` | `6px` |
+| — | `--breakpoint-panel` | `820px` — at or above this, sheets render as a fixed right panel |
 
 ### Motion
 
@@ -140,6 +142,8 @@ No cartoon illustration, no confetti, no gradients.
   `public.attempt_points()` — change both together.
 - **Streaks** are consecutive puzzle *numbers* solved within one mode. A fail
   breaks it and so does a skip. Modes never interact.
+- **Sheets become a right panel at `--breakpoint-panel` (820px)**, per the spec.
+  The prototype shows a centred 520px card there instead; the spec wins.
 - **Room codes** are 4 characters from A–Z and 2–9, minus `0`/`O` and `1`/`I`.
   `CODE_ALPHABET` in `@wordroom/shared` and the `rooms_code_format` constraint
   both encode this. **Open question:** the spec says "4-letter code (A–Z minus O
