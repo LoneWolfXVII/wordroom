@@ -27,3 +27,7 @@ supabase/functions/deno.deploy.json
 
 # Generated guess dictionary seed; regenerate with seed-guess-bank.mjs.
 supabase/seed-guesses.sql
+
+# Production credentials, kept out of the default dev path on purpose.
+apps/web/.env.production.local
+apps/web/.env.production.local.bak

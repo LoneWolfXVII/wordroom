@@ -4,6 +4,13 @@ project_id = "wordroom"
 port = 54322
 major_version = 17
 
+# Both seeds run on `supabase db reset`. `seed.sql` is the answers;
+# `seed-guesses.sql` is the ~47k-word dictionary `submit-guess` checks against —
+# without it a local database rejects every guess as "not a word".
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql", "./seed-guesses.sql"]
+
 [api]
 enabled = true
 port = 54321
@@ -19,6 +26,11 @@ port = 54323
 
 [auth]
 enabled = true
+# Every player starts anonymous, and sign-in upgrades that same user rather than
+# creating a second one. Both are on in production; without them locally the app
+# cannot get past the first screen.
+enable_anonymous_sign_ins = true
+enable_manual_linking = true
 site_url = "http://localhost:3900"
 additional_redirect_urls = ["http://localhost:3900/auth/callback", "https://wordroom.nischalgupta.dev/auth/callback"]
 jwt_expiry = 3600
