@@ -21,6 +21,18 @@ export function AccountSettingRow({ returnPath }: { returnPath: string }) {
   const { isAnonymous, email } = useSession()
   const [open, setOpen] = useState(false)
 
+  // `Expand` animates height, so the panel below stays mounted while collapsed
+  // and keeps whatever state it was left in. That made "Not now" a lie: it hid
+  // a half-typed address, or a spinner from a Google trip the player had
+  // already abandoned, and put both straight back on the next "Sign in".
+  // Bumping the key on the way open gives them a panel that has not been used.
+  const [session, setSession] = useState(0)
+
+  const toggle = () => {
+    if (!open) setSession((n) => n + 1)
+    setOpen((was) => !was)
+  }
+
   const signedIn = !isAnonymous && email !== null
 
   return (
@@ -30,7 +42,7 @@ export function AccountSettingRow({ returnPath }: { returnPath: string }) {
         hint={signedIn ? email : 'Playing as guest on this device'}
         control={
           signedIn ? null : (
-            <Button size="sm" onClick={() => setOpen((was) => !was)} aria-expanded={open}>
+            <Button size="sm" onClick={toggle} aria-expanded={open}>
               {open ? 'Not now' : 'Sign in'}
             </Button>
           )
@@ -40,7 +52,7 @@ export function AccountSettingRow({ returnPath }: { returnPath: string }) {
       {signedIn ? null : (
         <Expand open={open} maxHeight={260}>
           <div className="pb-1">
-            <SignInPanel returnPath={returnPath} onEmailSent={() => setOpen(false)} />
+            <SignInPanel key={session} returnPath={returnPath} onEmailSent={() => setOpen(false)} />
           </div>
         </Expand>
       )}

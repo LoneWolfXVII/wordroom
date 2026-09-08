@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Help, Icon, Input, toast } from '@/components/ui'
 import { GoogleIcon, LinkIcon } from '@/components/ui/icons'
 import { resolveRoomsError } from './errors'
@@ -30,17 +30,58 @@ export function SignInPanel({
 }: SignInPanelProps) {
   const [mode, setMode] = useState<'choose' | 'email'>('choose')
   const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
+  // Two different waits, and only one of them ends by itself. `sending` is a
+  // request we will get an answer to. `leaving` is the tab being handed to
+  // Google, which has no failure callback at all.
+  const busy = sending || leaving
+
+  /**
+   * Give the button back when the player is demonstrably still here.
+   *
+   * Handing the tab to Google is the one action with no completion to await, so
+   * `leaving` used to be set and never cleared. Cancel at Google's account
+   * picker and you came back to a spinner over a dead button, with the email
+   * link behind it disabled too - the panel was waiting for a trip that was
+   * already over.
+   *
+   * There is no "the player cancelled" event, but there is proof by return: a
+   * bfcache restore replays `pageshow` with `persisted`, and a tab that was
+   * never unloaded fires `visibilitychange` back to `visible`. Either one means
+   * this page is in front of the player, so nothing is pending.
+   *
+   * Scoped to `leaving` on purpose. An in-flight `sending` must survive the
+   * player glancing at another tab, or they can send a second link on top of
+   * the first.
+   */
+  useEffect(() => {
+    if (!leaving) return
+    const stopWaiting = () => setLeaving(false)
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) stopWaiting()
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') stopWaiting()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [leaving])
+
   const google = async () => {
-    setBusy(true)
+    setLeaving(true)
     setProblem(null)
     try {
       await linkGoogle(returnPath)
     } catch (error) {
       setProblem(resolveRoomsError(error).message)
-      setBusy(false)
+      setLeaving(false)
     }
     // No cleanup on success: the page is already navigating to Google.
   }
@@ -50,7 +91,7 @@ export function SignInPanel({
       setProblem('That does not look like an email address.')
       return
     }
-    setBusy(true)
+    setSending(true)
     setProblem(null)
     try {
       await linkEmail(email.trim())
@@ -59,7 +100,7 @@ export function SignInPanel({
     } catch (error) {
       setProblem(resolveRoomsError(error).message)
     } finally {
-      setBusy(false)
+      setSending(false)
     }
   }
 
@@ -122,7 +163,11 @@ export function SignInPanel({
       </div>
       <button
         type="button"
-        onClick={() => setMode('email')}
+        onClick={() => {
+          setLeaving(false)
+          setProblem(null)
+          setMode('email')
+        }}
         className="mt-2.5 inline-flex items-center gap-1.5 rounded-md text-[13px] text-ink-2 transition-colors duration-state active:text-ink"
       >
         <Icon icon={LinkIcon} size={16} />

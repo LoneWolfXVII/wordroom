@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { DevGame } from '@/features/game/dev/dev-game'
 
-export const metadata: Metadata = { title: 'Game harness · Wordroom' }
+export const metadata: Metadata = { title: 'Game harness' }
 
 /**
  * The game screen against a local double, alongside `/dev/ds`.

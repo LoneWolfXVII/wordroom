@@ -46,3 +46,13 @@ inactivity_timeout = "0s"
 
 [realtime]
 enabled = true
+
+# Placeholder Google credentials so the local stack will *build* an authorize
+# URL and hand the tab over, exactly as production does. Nothing here can sign
+# anyone in - the point is to be able to reproduce the trip, and abandoning it,
+# without a real Google project. Production reads its own secrets.
+[auth.external.google]
+enabled = true
+client_id = "local-placeholder.apps.googleusercontent.com"
+secret = "local-placeholder-secret"
+skip_nonce_check = true
