@@ -39,21 +39,15 @@ test('a reload returns the player to the puzzle they were on', async ({ page, pr
 })
 
 /**
- * Known gap, deliberately recorded rather than left for someone to trip over.
+ * Resuming restores the board, not just the puzzle number.
  *
- * `resumePuzzleNumber` picks the right *number*, but `loadPuzzle` then calls
- * `freshPuzzleState`, so the board comes back empty while the server still holds
- * the guesses that were already spent. The player sees six empty rows and has
- * five guesses left, and their rows no longer line up with the server's — the
- * next guess is scored as their second and drawn in the first row.
- *
- * Marked as an expected failure: it keeps the defect in the suite, keeps CI
- * green in the meantime, and turns into a loud error the moment it is fixed
- * without this being updated.
+ * This was a `test.fail()` for a real gap: `resumePuzzleNumber` picked the right
+ * number but `loadPuzzle` always started from `freshPuzzleState`, so a reload
+ * mid-puzzle showed six empty rows while the server still held the guesses
+ * spent — and the next guess was scored as the second and drawn in the first
+ * row. `loadPuzzle` now takes the attempt the server still has.
  */
 test('resuming also restores the guesses already spent', async ({ page, probe }) => {
-  test.fail()
-
   const { room } = await probe.createRoom('resume-board')
   await joinRoom(page, room.code, uniqueName('Pal'))
   await startPlaying(page)
