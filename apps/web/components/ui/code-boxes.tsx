@@ -53,6 +53,29 @@ export function CodeBoxes({
 }: CodeBoxesProps) {
   const boxes = useRef<(HTMLInputElement | null)[]>([])
 
+  /**
+   * The freshest code, which is not always the `value` prop.
+   *
+   * Each handler used to read `value` out of its render closure. Typing
+   * advances focus synchronously, so a second keystroke can land before React
+   * has committed the first — and then the second handler starts from the old
+   * string and overwrites the character just typed. A fast typist or a
+   * password-manager autofill loses letters; a paste never did, because it
+   * writes every box in one call.
+   *
+   * Emitting through `emit` keeps this in step within a tick, and the effect
+   * re-syncs it whenever the value changes from outside.
+   */
+  const latest = useRef(value)
+  useEffect(() => {
+    latest.current = value
+  }, [value])
+
+  const emit = (next: string) => {
+    latest.current = next
+    onValueChange(next)
+  }
+
   // Focused after mount rather than with the `autofocus` attribute, which the
   // server would render and which steals focus before hydration.
   useEffect(() => {
@@ -61,16 +84,16 @@ export function CodeBoxes({
 
   // A gap is held as a space so later characters keep their position; nothing
   // outside this component ever sees one.
-  const charAt = (index: number) => (value[index] ?? '').trim()
+  const charAt = (index: number) => (latest.current[index] ?? '').trim()
 
   const focusBox = (index: number) => {
     boxes.current[Math.min(Math.max(index, 0), length - 1)]?.focus()
   }
 
   const setCharacter = (index: number, character: string) => {
-    const next = value.padEnd(length, ' ').split('')
+    const next = latest.current.padEnd(length, ' ').split('')
     next[index] = character || ' '
-    onValueChange(next.join('').trimEnd())
+    emit(next.join('').trimEnd())
   }
 
   const handleInput = (index: number, raw: string) => {
@@ -81,11 +104,11 @@ export function CodeBoxes({
     }
     // A soft keyboard can deliver more than one character at a time.
     const chars = cleaned.split('')
-    const next = value.padEnd(length, ' ').split('')
+    const next = latest.current.padEnd(length, ' ').split('')
     chars.forEach((character, offset) => {
       if (index + offset < length) next[index + offset] = character
     })
-    onValueChange(next.join('').trimEnd())
+    emit(next.join('').trimEnd())
     focusBox(index + chars.length)
   }
 
@@ -114,11 +137,11 @@ export function CodeBoxes({
       length - index,
     )
     if (!pasted) return
-    const next = value.padEnd(length, ' ').split('')
+    const next = latest.current.padEnd(length, ' ').split('')
     pasted.split('').forEach((character, offset) => {
       next[index + offset] = character
     })
-    onValueChange(next.join('').trimEnd())
+    emit(next.join('').trimEnd())
     focusBox(index + pasted.length)
   }
 

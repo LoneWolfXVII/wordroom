@@ -26,6 +26,7 @@ import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/featu
 import { RoomSheet, SaveProgressNudge, SignInPanel, useActiveSeat } from '@/features/rooms'
 import { applyPendingSettings, SettingsSheet } from '@/features/settings'
 import { getBrowserClient, isSupabaseConfigured, supabaseEnv } from '@/lib/supabase'
+import { resumePuzzleNumber } from './resume'
 
 export function GameRoute() {
   const { seat, isLoading } = useActiveSeat()
@@ -72,9 +73,19 @@ export function GameRoute() {
     applyPendingSettings()
   }, [puzzle])
 
+  // Open the puzzle this player is actually up to, not No. 1. See `resume.ts`.
   useEffect(() => {
     if (!seat || !env || puzzle) return
-    void loadPuzzle(mode, 1)
+
+    let cancelled = false
+    void (async () => {
+      const number = await resumePuzzleNumber(getBrowserClient(), seat.room.id, mode)
+      if (!cancelled) await loadPuzzle(mode, number)
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [seat, env, puzzle, mode, loadPuzzle])
 
   const { delta } = useRankDelta({
