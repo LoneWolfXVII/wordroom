@@ -142,19 +142,28 @@ async function persist(input: PersistInput): Promise<AttemptRow> {
  * not exist or the caller is not in its room, and the two are deliberately the
  * same answer: a stranger should not be able to probe which puzzle ids exist.
  */
+interface GuessContext {
+  puzzle: PuzzleRow
+  player: PlayerRow
+  attempt: AttemptRow | null
+  /** Null when the request carried no guess, i.e. a timeout. */
+  guess_is_word: boolean | null
+}
+
 async function loadGuessContext(
   db: ServiceClient,
   puzzleId: string,
   userId: string,
-): Promise<{ puzzle: PuzzleRow; player: PlayerRow; attempt: AttemptRow | null }> {
+  guess: string | undefined,
+): Promise<GuessContext> {
   const { data, error } = await db
-    .rpc('guess_context', { p_puzzle_id: puzzleId, p_user_id: userId })
+    .rpc('guess_context', { p_puzzle_id: puzzleId, p_user_id: userId, p_guess: guess ?? null })
     .maybeSingle()
 
   if (error) throw mapPostgresError(error)
   if (!data) throw forbidden('not_a_member', 'You are not a player in this room.')
 
-  return data as { puzzle: PuzzleRow; player: PlayerRow; attempt: AttemptRow | null }
+  return data as GuessContext
 }
 
 serveFunction(async (req) => {
@@ -169,7 +178,7 @@ serveFunction(async (req) => {
   // that could be one query now are, and the two that remain overlap.
   const [, context] = await Promise.all([
     enforceRateLimit(db, 'submit-guess', caller.userId, SUBMIT_GUESS_LIMIT),
-    loadGuessContext(db, body.puzzleId, caller.userId),
+    loadGuessContext(db, body.puzzleId, caller.userId, body.guess),
   ])
 
   const { puzzle, player, attempt } = context
@@ -233,6 +242,7 @@ serveFunction(async (req) => {
     mode: puzzle.mode,
     guess: body.guess,
     state,
+    isRealWord: context.guess_is_word !== false,
     now: nowIso,
   })
 

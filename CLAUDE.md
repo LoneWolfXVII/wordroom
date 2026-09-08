@@ -21,6 +21,8 @@ revealed it. Everything below follows from that.
   `authenticated`. A `select *` on those tables fails for a client. Use the
   answer-free views: `room_details`, `room_puzzles`, `my_attempts`.
 - `word_bank` has no grant and no policy at all. Clients cannot read it, ever.
+  `guess_bank` is the separate, non-secret dictionary of typeable words — the
+  same list the browser ships. Never confuse the two.
 - Guesses are validated and scored in the `submit-guess` Edge Function, which
   returns **marks only** — `correct` / `present` / `absent` per tile.
 - The client's copy of the word list is the **guess** list, for spelling checks.
@@ -169,7 +171,8 @@ pnpm test             # vitest
 pnpm lint             # biome check
 pnpm format           # biome check --write
 pnpm build            # next build
-pnpm seed:wordbank    # docs/wordlists/wordlists.json -> supabase/seed.sql
+pnpm seed:wordbank    # answers -> supabase/seed.sql
+node supabase/scripts/seed-guess-bank.mjs   # dictionary -> supabase/seed-guesses.sql
 
 SUPABASE_ACCESS_TOKEN=sbp_... ./supabase/scripts/deploy-functions.sh
 ```

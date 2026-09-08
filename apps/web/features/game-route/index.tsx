@@ -23,9 +23,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Screen } from '@/components/ui'
 import { createEdgeGameApi, GameScreen, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
-import { RoomSheet, SaveProgressNudge, SignInPanel, useActiveSeat } from '@/features/rooms'
+import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
 import { applyPendingSettings, SettingsSheet } from '@/features/settings'
 import { getBrowserClient, isSupabaseConfigured, supabaseEnv } from '@/lib/supabase'
+import { AccountSettingRow } from './account-row'
 import { resumePuzzleNumber } from './resume'
 
 export function GameRoute() {
@@ -155,7 +156,7 @@ export function GameRoute() {
       <SettingsSheet
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        footer={<SignInPanel returnPath="/game" />}
+        footer={<AccountSettingRow returnPath="/game" />}
       />
     </>
   )

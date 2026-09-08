@@ -58,6 +58,11 @@ jobs:
       - name: Validate word lists
         run: node supabase/scripts/seed-word-bank.mjs --check
 
+      # Also asserts every answer is typeable and each list is a real dictionary
+      # — the invariants that used to be a unit test of the bundled word list.
+      - name: Validate guess dictionary
+        run: node supabase/scripts/seed-guess-bank.mjs --check
+
   functions:
     name: edge functions
     runs-on: ubuntu-latest
