@@ -19,6 +19,8 @@
  */
 
 import { requireCaller } from '../_shared/auth.ts'
+import { loadContext, persistAttempt } from '../_shared/guess-store.ts'
+import { hasDirectConnection } from '../_shared/sql.ts'
 import {
   type AttemptRow,
   type PlayerRow,
@@ -92,6 +94,22 @@ interface PersistInput {
  * retry rather than silently overwriting.
  */
 async function persist(input: PersistInput): Promise<AttemptRow> {
+  if (hasDirectConnection()) {
+    return await persistAttempt({
+      attempt: input.attempt,
+      playerId: input.playerId,
+      puzzleId: input.puzzleId,
+      guesses: input.next.guesses,
+      marks: encodeMarks(input.next.marks),
+      solved: input.next.solved,
+      guessCount: input.next.guesses.length,
+      elapsedMs: input.elapsedMs,
+      finishedAt: input.next.finishedAt,
+      timerMode: input.timerMode,
+      hardMode: input.hardMode,
+    })
+  }
+
   const { db, attempt, next } = input
   const row = {
     guesses: next.guesses,
@@ -156,6 +174,21 @@ async function loadGuessContext(
   userId: string,
   guess: string | undefined,
 ): Promise<GuessContext> {
+  // Straight to Postgres where the platform offers a connection. supabase-js
+  // reaches the database through the *public* HTTPS endpoint, so each query
+  // leaves the region and comes back — that round trip, not the query, is most
+  // of this function's time. Same SQL either way; see `_shared/guess-store.ts`.
+  if (hasDirectConnection()) {
+    const direct = await loadContext(puzzleId, userId, guess)
+    if (!direct) throw forbidden('not_a_member', 'You are not a player in this room.')
+    return {
+      puzzle: direct.puzzle,
+      player: direct.player,
+      attempt: direct.attempt,
+      guess_is_word: direct.guessIsWord,
+    }
+  }
+
   const { data, error } = await db
     .rpc('guess_context', { p_puzzle_id: puzzleId, p_user_id: userId, p_guess: guess ?? null })
     .maybeSingle()

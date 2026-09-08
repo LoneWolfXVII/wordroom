@@ -37,6 +37,30 @@ supabase db push
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 
+## The direct-Postgres path (branch `perf-direct-db`, not deployed)
+
+`submit-guess` reads and writes over a direct Postgres connection
+(`SUPABASE_DB_URL`, the transaction pooler) instead of supabase-js, which talks
+to the *public* HTTPS endpoint — so every query used to leave the region and come
+back. Measured against production: the queries themselves cost ~11ms, while the
+function took ~780ms.
+
+Falls back to the HTTP path with a loud `console.warn` if `SUPABASE_DB_URL` is
+absent, so a missing variable degrades rather than breaks.
+
+`_tests/direct-sql.test.ts` covers it against a real database, and skips when
+there is no `SUPABASE_DB_URL` so CI stays green. To run it:
+
+```bash
+docker run -d --name pg -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:17-alpine
+# apply every migration and both seeds, then
+SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:55432/postgres \
+  deno test --allow-all _tests/direct-sql.test.ts
+```
+
+**The latency win is unverified.** Correctness is tested; the speedup is a
+reasoned argument from where the time goes, and needs one deploy to confirm.
+
 ## Applying any of this
 
 **Nothing here goes through git.** A migration run in the SQL editor and a

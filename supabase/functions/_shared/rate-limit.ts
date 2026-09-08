@@ -15,6 +15,8 @@
 
 import type { ServiceClient } from './db.ts'
 import { AppError } from './errors.ts'
+import { hitRateLimit } from './guess-store.ts'
+import { hasDirectConnection } from './sql.ts'
 
 export interface RateLimit {
   /** Requests allowed inside the window. */
@@ -52,6 +54,15 @@ export async function enforceRateLimit(
   userId: string,
   limit: RateLimit,
 ): Promise<void> {
+  // Direct connection where there is one; see `_shared/sql.ts` for why.
+  if (hasDirectConnection()) {
+    const verdict = await hitRateLimit(`${bucket}:${userId}`, limit.windowSeconds, limit.max)
+    if (verdict.allowed) return
+    throw new AppError('rate_limited', 429, 'Too many requests. Wait a moment and try again.', {
+      retryAfterSeconds: Math.max(verdict.retryAfterSeconds, 1),
+    })
+  }
+
   const { data, error } = await db.rpc('rate_limit_hit', {
     p_key: `${bucket}:${userId}`,
     p_window_seconds: limit.windowSeconds,
