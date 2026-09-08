@@ -199,3 +199,13 @@ Deno.test('guessResultBody refuses to build an unfinished body that leaks', () =
     AppError,
   )
 })
+
+Deno.test('a uuid that happens to spell a hex answer is not mistaken for a leak', () => {
+  // "facade" is spellable in hex, so it can appear inside a real uuid.
+  const body = { attemptId: '0facade0-1111-4222-8333-444444444444', marks: null }
+  assertAnswerAbsent(body, 'facade')
+})
+
+Deno.test('an answer in an actual field is still caught', () => {
+  assertThrows(() => assertAnswerAbsent({ hint: 'facade' }, 'facade'))
+})

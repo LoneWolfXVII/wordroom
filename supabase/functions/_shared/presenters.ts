@@ -71,7 +71,14 @@ export function toAttempt(row: AttemptRow): Attempt {
  * rather than a spoiler in someone's network tab.
  */
 export function assertAnswerAbsent(body: unknown, answer: string): void {
-  if (JSON.stringify(body).toLowerCase().includes(answer.toLowerCase())) {
+  // UUIDs are hex, and two answers ("decade", "facade") are spellable in hex.
+  // Without stripping ids first, a body would very occasionally 500 because a
+  // random uuid happened to contain the word.
+  const haystack = JSON.stringify(body)
+    .toLowerCase()
+    .replaceAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<id>')
+
+  if (haystack.includes(answer.toLowerCase())) {
     console.error('refused to send a response containing the puzzle answer')
     throw new AppError('internal', 500, 'Something went wrong. Try again.')
   }
