@@ -1,4 +1,7 @@
 import type { Metadata, Viewport } from 'next'
+import { AppShell } from '@/components/ui/app-shell'
+import { Toaster } from '@/components/ui/toast'
+import { geist } from './fonts'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -15,8 +18,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className={geist.variable}>
+      <body>
+        <AppShell>{children}</AppShell>
+        <Toaster />
+      </body>
     </html>
   )
 }
