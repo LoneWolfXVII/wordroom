@@ -13,7 +13,8 @@
  * list. Answers live in `word_bank`, which no client may read. The answer words
  * are folded in here for the same reason the server folds them in: a player has
  * to be able to type the solution. They are indistinguishable inside the list,
- * and CLAUDE.md's rule is about `puzzles.answer`, not about which English words
+ * and CLAUDE.md's rule is about `puzzles.answer` (answers-ok: prose, not a field read),
+ * not about which English words
  * exist.
  *
  * The words are emitted as one newline-joined template literal rather than an

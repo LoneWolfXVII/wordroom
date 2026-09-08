@@ -99,7 +99,8 @@ jobs:
       # assertion that no answer appears on the wire.
       - name: No answer field in app code
         run: |
-          hits=$(grep -rn --include='*.ts' --include='*.tsx' \
+          hits=$(grep -rn --include='*.ts' --include='*.tsx' --include='*.mts' \
+                   --include='*.cts' --include='*.js' --include='*.jsx' --include='*.mjs' \
                    -E "\\.answer\\b" apps/web | grep -v 'answers-ok:' || true)
           if [ -n "$hits" ]; then
             echo "$hits"

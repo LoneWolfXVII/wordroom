@@ -98,6 +98,25 @@
 }
 
 /*
+ * `--duration-*` is not one of Tailwind's theme namespaces, so defining those
+ * tokens in `@theme` emits the variables but generates no `duration-micro`
+ * utility - transitions silently fall back to Tailwind's 150ms default. These
+ * make the documented names real.
+ */
+@utility duration-micro {
+  transition-duration: var(--duration-micro);
+}
+@utility duration-state {
+  transition-duration: var(--duration-state);
+}
+@utility duration-struct {
+  transition-duration: var(--duration-struct);
+}
+@utility duration-reveal {
+  transition-duration: var(--duration-reveal);
+}
+
+/*
  * Prototype aliases. Markup lifted straight out of wordroom-screens.html keeps
  * working without a find-and-replace; new code should prefer Tailwind utilities.
  */

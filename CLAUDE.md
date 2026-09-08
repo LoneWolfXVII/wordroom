@@ -184,4 +184,10 @@ validates the word lists, and greps for leaked answers.
 - Biome, single quotes, no semicolons, 100 columns. Do not add Prettier or ESLint.
 - Domain logic that both the app and an Edge Function need lives in
   `packages/shared` and has a Vitest test. Pure functions, no I/O.
+- **Adding a file to `packages/shared` needs one more edit:** `supabase/functions/deno.json`
+  maps each shared module's `.js` specifier to its `.ts` twin so Deno can resolve
+  it. Add the new module there too, or the functions stop typechecking. CI's
+  `edge functions` job catches this.
+- `duration-*` is not a Tailwind theme namespace, so those utilities are defined
+  with `@utility` in `globals.css`. `ease-*` is a real namespace and needs nothing.
 - Mobile first. The game screen must fit 375×667 with no vertical scroll.

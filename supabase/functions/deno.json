@@ -11,6 +11,7 @@
   "imports": {
     "@wordroom/shared": "../../packages/shared/src/index.ts",
     "../../packages/shared/src/hard-mode.js": "../../packages/shared/src/hard-mode.ts",
+    "../../packages/shared/src/marks.js": "../../packages/shared/src/marks.ts",
     "../../packages/shared/src/points.js": "../../packages/shared/src/points.ts",
     "../../packages/shared/src/score.js": "../../packages/shared/src/score.ts",
     "../../packages/shared/src/stats.js": "../../packages/shared/src/stats.ts",
