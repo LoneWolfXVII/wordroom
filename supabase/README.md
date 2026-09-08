@@ -23,6 +23,27 @@ supabase db push
 psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 ```
 
+## Deploying the edge functions
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_... ./supabase/scripts/deploy-functions.sh
+```
+
+Do not call `supabase functions deploy` directly. The functions import
+`@wordroom/shared` from `packages/shared/src`, which is outside
+`supabase/functions` — deliberately, so the scoring rules exist once rather than
+twice. The deploy bundler runs in a container that mounts only
+`supabase/functions`, so that relative path escapes the mount and the bundle
+fails with `Module not found`.
+
+The script vendors the shared source into `supabase/functions/_vendor/` for the
+length of one deploy, points `deno.json` at the copy, deploys, then restores
+both. Nothing vendored is ever committed. Local `deno check`, `deno test` and
+`supabase functions serve` need none of this — they read the real path.
+
+Create the token at https://supabase.com/dashboard/account/tokens, scoped to
+this project; **Edge Functions read-write is the only permission needed**.
+
 ## What a client may read
 
 | Table | `anon` | `authenticated` |

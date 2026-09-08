@@ -172,7 +172,13 @@ pnpm lint             # biome check
 pnpm format           # biome check --write
 pnpm build            # next build
 pnpm seed:wordbank    # docs/wordlists/wordlists.json -> supabase/seed.sql
+
+SUPABASE_ACCESS_TOKEN=sbp_... ./supabase/scripts/deploy-functions.sh
 ```
+
+Deploy the edge functions with that script, never `supabase functions deploy`
+directly — the bundler cannot see `packages/shared` and the script vendors it.
+See `supabase/README.md`.
 
 Pre-commit runs `pnpm typecheck && pnpm test`. CI additionally lints, builds,
 validates the word lists, and greps for leaked answers.

@@ -20,3 +20,7 @@ supabase/seed.sql
 
 # Agent git worktrees live here; they are separate checkouts.
 .claude/worktrees/
+
+# Vendored at deploy time by supabase/scripts/deploy-functions.sh, never committed.
+supabase/functions/_vendor/
+supabase/functions/deno.deploy.json
