@@ -209,3 +209,60 @@ Deno.test('a uuid that happens to spell a hex answer is not mistaken for a leak'
 Deno.test('an answer in an actual field is still caught', () => {
   assertThrows(() => assertAnswerAbsent({ hint: 'facade' }, 'facade'))
 })
+
+/**
+ * The regression that sent this file back for a second look.
+ *
+ * The guard used to search `JSON.stringify(body)`, which contains the field
+ * names and the boolean literals as well as the data. Eleven words in the
+ * answer bank are substrings of that text, one for every mode, so eleven rooms
+ * in every 4,864 answered every guess with a 500. `false` is the worst of them:
+ * `"solved":false` is in every unfinished body, so that room was unplayable.
+ */
+const STRUCTURAL_ANSWERS = [
+  'false', // "solved":false
+  'solve', // "solved"
+  'guess', // "guessCount"
+  'tempt', // "attemptId"
+  'absent', // a mark
+  'puzzle', // "puzzleId"
+  'remain', // "guessesRemaining"
+  'finish', // "finished"
+  'correct', // a mark
+  'present', // a mark
+  'attempt', // "attemptId"
+]
+
+for (const answer of STRUCTURAL_ANSWERS) {
+  Deno.test(`a live guess is playable when the answer is "${answer}"`, () => {
+    const body = guessResultBody({
+      attemptId: '11111111-1111-4111-8111-111111111111',
+      puzzleId: '22222222-2222-4222-8222-222222222222',
+      marks: ['absent', 'present', 'correct', 'absent', 'absent'],
+      guessCount: 1,
+      solved: false,
+      finishedAt: null,
+      elapsedMs: null,
+      answer,
+    })
+    assertEquals(body.finished, false)
+    assert(!('answer' in body))
+  })
+}
+
+Deno.test('a mark word is structure, but a mark word in a data field is not', () => {
+  // 'absent' is both a mark and a six-letter answer. The mark is fine.
+  assertAnswerAbsent({ marks: ['absent', 'correct'] }, 'absent')
+  // The same word as free-form content is still a leak.
+  assertThrows(() => assertAnswerAbsent({ hint: 'absent' }, 'absent'), AppError)
+  // And so is a longer string that merely contains it.
+  assertThrows(() => assertAnswerAbsent({ note: 'it was absent' }, 'absent'), AppError)
+})
+
+Deno.test('a key that spells the answer is not a leak, because keys carry no data', () => {
+  assertAnswerAbsent({ puzzleId: '22222222-2222-4222-8222-222222222222' }, 'puzzle')
+})
+
+Deno.test('the guard still reaches values nested in arrays and objects', () => {
+  assertThrows(() => assertAnswerAbsent({ a: [{ b: ['crane'] }] }, ANSWER), AppError)
+})
