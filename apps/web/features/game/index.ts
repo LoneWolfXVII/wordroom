@@ -9,9 +9,9 @@
  * it only does once the attempt is solved, failed or timed out.
  */
 export {
-  createEdgeGameApi,
-  type EdgeApiConfig,
+  createGameApi,
   type GameApi,
+  type GameApiConfig,
   GameApiError,
   type GameErrorCode,
   type GuessResult,

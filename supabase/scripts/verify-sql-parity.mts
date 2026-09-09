@@ -18,6 +18,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { isHardModeValid, type ScoredGuess } from '../../packages/shared/src/hard-mode.js'
 import { scoreGuess } from '../../packages/shared/src/score.js'
+import { puzzleIndex } from '../functions/_shared/puzzle.ts'
 
 const DB = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const lists = JSON.parse(
@@ -134,6 +135,85 @@ console.log(`message mismatches  ${messageMismatch.length}`)
 if (verdictMismatch.length) console.log(verdictMismatch.slice(0, 6).join('\n'))
 if (messageMismatch.length) console.log(messageMismatch.slice(0, 6).join('\n'))
 
-const failures = scoreBad.length + verdictMismatch.length + messageMismatch.length
+// ---------------------------------------------------------------------------
+// The puzzle sequence
+//
+// This one decides which word a room sees for every puzzle it will ever play,
+// so it is compared at the end of the chain - the word, not the index. An
+// implementation that is nearly right changes every room's sequence silently.
+// ---------------------------------------------------------------------------
+const countsRaw = execFileSync(
+  'psql',
+  [
+    DB,
+    '-t',
+    '-A',
+    '-c',
+    'select json_object_agg(len, n) from (select len, count(*) n from public.word_bank group by len) x;',
+  ],
+  { encoding: 'utf8' },
+).trim()
+
+// `json_object_agg` over no rows is NULL, which psql prints as the empty string
+// and `JSON.parse` rejects with "Unexpected end of JSON input" — a stack trace
+// that says nothing about the actual problem. The seeds are generated rather
+// than committed, so an unseeded database is the likeliest way to arrive here.
+if (countsRaw === '') {
+  console.error(
+    'public.word_bank is empty, so there is no sequence to compare.\n' +
+      'Generate the seeds and reload them:\n' +
+      '  node supabase/scripts/seed-word-bank.mjs\n' +
+      '  node supabase/scripts/seed-guess-bank.mjs\n' +
+      '  supabase db reset',
+  )
+  process.exit(1)
+}
+
+const counts = JSON.parse(countsRaw) as Record<string, number>
+
+const seqRows: string[] = []
+const seqLabels: string[] = []
+for (const mode of [5, 6, 7] as const) {
+  const count = counts[String(mode)] as number
+  for (let room = 0; room < 25; room++) {
+    const seed = [...crypto.getRandomValues(new Uint8Array(16))]
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+    // Early numbers, mid-bank, and either side of the wrap where the epoch
+    // re-keys the shuffle.
+    for (const n of [1, 2, 9, 250, count - 1, count, count + 1, count * 2 + 3]) {
+      const index = await puzzleIndex(seed, mode, n, count)
+      seqRows.push(`('${seed}',${mode},${n},${count},${index})`)
+      seqLabels.push(`${seed.slice(0, 8)} mode ${mode} no.${n}`)
+    }
+  }
+}
+
+writeFileSync(
+  '/tmp/parity-sequence.sql',
+  `select (select wb.word from public.word_bank wb where wb.len = t.m
+             order by wb.rank, wb.word offset public.puzzle_index(t.s, t.m, t.n, t.c) limit 1),
+          (select wb.word from public.word_bank wb where wb.len = t.m
+             order by wb.rank, wb.word offset t.ts_index limit 1)
+     from (values ${seqRows.join(',')}) as t(s,m,n,c,ts_index);`,
+)
+const seqOut = execFileSync(
+  'psql',
+  [DB, '-t', '-A', '-F', '\t', '-f', '/tmp/parity-sequence.sql'],
+  { encoding: 'utf8' },
+)
+const seqLines = seqOut.split('\n').filter((l) => l.trim())
+const seqBad = seqLines
+  .map((line, i) => {
+    const [sqlWord, tsWord] = line.split('\t')
+    return sqlWord === tsWord ? null : `${seqLabels[i]}: sql=${sqlWord} ts=${tsWord}`
+  })
+  .filter((x): x is string => x !== null)
+
+console.log(`compared ${seqLines.length} puzzle answers across all three modes`)
+console.log(`sequence mismatches ${seqBad.length}`)
+if (seqBad.length) console.log(seqBad.slice(0, 6).join('\n'))
+
+const failures = scoreBad.length + verdictMismatch.length + messageMismatch.length + seqBad.length
 console.log(failures === 0 ? '\nIDENTICAL' : `\n${failures} DIVERGENCES`)
 process.exit(failures === 0 ? 0 : 1)
