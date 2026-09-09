@@ -148,18 +148,37 @@ Deno.test('the code pattern is the alphabet, so a digit no room can have is refu
 })
 
 Deno.test('code generation is unbiased across the alphabet', () => {
-  // 256 is not a multiple of 24, so `byte % 24` favours the first 16 letters by
-  // a tenth. Rejection sampling makes every letter equally likely; with 48,000
-  // draws each letter should land within a few percent of its share.
+  /*
+   * 256 is not a multiple of 24, so a naive `byte % 24` gives the first 16
+   * letters 11 chances in 256 and the last 8 only 10 — a 3.1% skew. Rejection
+   * sampling removes it, and this is what would notice if it came back.
+   *
+   * The sample size is doing real work here, so the arithmetic is written down.
+   * Per-letter counts are binomial: sigma = sqrt(n·p·(1-p)) with p = 1/24. At
+   * the previous 48,000 letters that is sigma/mu = 2.19%, so the 8% tolerance
+   * sat at 3.65 sigma — across 24 letters, a **0.62% chance of failing a run
+   * that was perfectly fine**, which is once every 160 runs. It duly did, on a
+   * pull request that changed nothing near it: `V: 2161 vs 2000`.
+   *
+   * Loosening the tolerance was not available: anything past 3.1% stops
+   * catching the bias the test exists for. So the samples go up instead. At
+   * 800,000 letters sigma/mu is 0.54%, which puts a 2.5% tolerance at 4.7 sigma
+   * — a false failure about once in thirteen thousand runs — while still
+   * catching a 3.1% skew comfortably. Costs about 170ms.
+   */
+  const CODES = 200_000
   const counts = new Map<string, number>()
-  for (let i = 0; i < 12_000; i++) {
+  for (let i = 0; i < CODES; i++) {
     for (const character of generateRoomCode()) {
       counts.set(character, (counts.get(character) ?? 0) + 1)
     }
   }
-  const expected = 48_000 / CODE_ALPHABET.length
+  const expected = (CODES * 4) / CODE_ALPHABET.length
   for (const character of CODE_ALPHABET) {
     const count = counts.get(character) ?? 0
-    assert(Math.abs(count - expected) < expected * 0.08, `${character}: ${count} vs ${expected}`)
+    assert(
+      Math.abs(count - expected) < expected * 0.025,
+      `${character}: ${count} vs ${expected} — outside 2.5%, which is 4.7 sigma`,
+    )
   }
 })
