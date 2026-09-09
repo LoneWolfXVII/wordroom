@@ -1,9 +1,22 @@
-# Set the version a pull request will ship, from its label.
+# Check the version a pull request will ship matches its label.
 #
-# WHY IT RUNS ON THE PULL REQUEST AND NOT ON MAIN. Bumping after a merge means a
-# second commit on `main`, which is a second Vercel deploy — and the deploy that
-# actually shipped the change carried the *old* number. Writing the version onto
-# the branch first means the merge itself ships the right one, and nothing loops.
+# WHY IT CHECKS RATHER THAN WRITES. It used to write: compute the version, commit
+# `apps/web/package.json`, push to the branch. That worked and cost two human
+# clicks on every pull request, because a commit authored by
+# `github-actions[bot]` trips two separate gates:
+#
+#   - `fork-pr-contributor-approval` is `first_time_contributors`, and the bot
+#     has no merged contribution, so its runs are created and immediately closed
+#     as `action_required` with zero jobs — even on a same-repo branch.
+#   - the `prod` ruleset sets `require_extra_approval_for_unattributed_changes`,
+#     and a bot commit is unattributed, so it demands an extra review.
+#
+# It also cost real signal: two runs on `perf-submit-guess-rpc` sat gated until
+# that pull request merged and then resolved to `failure` having never run a
+# single job. A check that never runs is worse than no check.
+#
+# So the bump is a human edit now, in the diff, where a reviewer can see it —
+# and this job only says whether it is right.
 #
 # WHAT THE LEVELS MEAN HERE. Semver's usual contract is about API compatibility
 # for consumers, and this app has none, so the levels are redefined around the
@@ -27,20 +40,17 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   bump:
-    # A fork's branch cannot be pushed to, and the token is read-only there.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: version
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Work out the version this branch should carry
         id: target
@@ -70,27 +80,29 @@ jobs:
           echo "version=$major.$minor.$patch"   >> "$GITHUB_OUTPUT"
           echo "main is $base; a $level release makes this $major.$minor.$patch"
 
-      - name: Write it, if it is not already right
+      - name: The branch must already carry it
         env:
           VERSION: ${{ steps.target.outputs.version }}
+          LEVEL: ${{ steps.target.outputs.level }}
         run: |
           set -euo pipefail
           current=$(jq -r .version apps/web/package.json)
           if [ "$current" = "$VERSION" ]; then
-            echo "already $VERSION — nothing to do"
+            echo "version is $VERSION, which is right for a $LEVEL release"
             exit 0
           fi
 
-          jq --arg v "$VERSION" '.version = $v' apps/web/package.json > /tmp/pkg.json
-          mv /tmp/pkg.json apps/web/package.json
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/package.json
-          git commit -m "Set version to $VERSION"
-          git push origin HEAD:${{ github.head_ref }}
+          echo "::error file=apps/web/package.json::This is a $LEVEL release, so it should ship as $VERSION, but the branch says $current."
+          echo ""
+          echo "Set it with:"
+          echo "  npm --prefix apps/web version --no-git-tag-version $VERSION"
+          echo "  git commit -am 'Set version to $VERSION'"
+          echo ""
+          echo "Or change the label: major, minor, or none for patch."
+          exit 1
 
       - name: Say what will ship
+        if: always()
         run: |
           echo "### Ships as v${{ steps.target.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
