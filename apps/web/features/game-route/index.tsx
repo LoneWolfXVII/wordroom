@@ -81,7 +81,7 @@ export function GameRoute() {
     () => (env ? createSettingsSource(getBrowserClient()) : null),
     [env],
   )
-  useSettingsConnection(settingsSource, seat?.player.id ?? null)
+  useSettingsConnection(settingsSource, seat?.player.id ?? null, seat?.player.settings)
   const settingsReady = useSettingsStore((s) => s.ready)
   useEffect(() => bindSettingsToGame(), [])
 

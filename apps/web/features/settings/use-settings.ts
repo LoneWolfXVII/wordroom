@@ -25,7 +25,15 @@ interface SettingsState {
   ready: boolean
   saving: boolean
 
-  connect: (source: SettingsSource | null, playerId: string | null) => Promise<void>
+  /**
+   * `known` is the player's settings when the caller already holds them - the
+   * seat carries the whole row - which turns the load into no request at all.
+   */
+  connect: (
+    source: SettingsSource | null,
+    playerId: string | null,
+    known?: unknown,
+  ) => Promise<void>
   update: (patch: Partial<PlayerSettings>) => void
   /** Call at the start of every puzzle: pending settings become active. */
   applyPending: () => void
@@ -54,7 +62,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   ready: false,
   saving: false,
 
-  async connect(nextSource, nextPlayerId) {
+  async connect(nextSource, nextPlayerId, known) {
     const token = ++connectToken
     // An edit still inside its debounce belongs to the player who made it.
     // Write it now, before the module-level target moves to someone else.
@@ -65,6 +73,19 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     // settings, or the defaults. Neither may be taken for theirs.
     set({ ready: false })
     if (nextSource === null || nextPlayerId === null) return
+
+    // The seat already carries this row. `fetchMySeats` selects `settings`
+    // along with everything else about the player, so loading it again is a
+    // second read of a row the client is holding - and it was the third
+    // `players` request on every page load, next to the roster and the seat
+    // itself. Measured against production it cost between 400ms and 2.3s.
+    //
+    // Still normalised rather than trusted: it is jsonb the client may write.
+    if (known !== undefined) {
+      const settings = normalizeSettings(known)
+      set({ settings, active: { ...settings }, ready: true })
+      return
+    }
 
     try {
       const loaded = await nextSource.load(nextPlayerId)
@@ -164,10 +185,12 @@ export function applyPendingSettings(): void {
 export function useSettingsConnection(
   settingsSource: SettingsSource | null,
   currentPlayerId: string | null,
+  /** The player's settings if the caller already has them. Saves a round trip. */
+  known?: unknown,
 ): void {
   const connect = useSettingsStore((state) => state.connect)
 
   useEffect(() => {
-    void connect(settingsSource, currentPlayerId)
-  }, [connect, settingsSource, currentPlayerId])
+    void connect(settingsSource, currentPlayerId, known)
+  }, [connect, settingsSource, currentPlayerId, known])
 }
