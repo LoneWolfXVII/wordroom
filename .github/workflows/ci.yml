@@ -42,6 +42,41 @@ jobs:
       - name: Build
         run: pnpm build
 
+  sql-parity:
+    name: sql parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Only Postgres is needed. Everything else is minutes of image pulls for a
+      # job that never makes an HTTP request.
+      - name: Start Postgres with the migrations applied
+        run: >
+          supabase start
+          -x realtime,storage-api,imgproxy,mailpit,studio,edge-runtime,logflare,vector,supavisor,postgres-meta,pooler
+
+      # `submit_guess` moved the scoring and hard-mode rules into SQL. That is
+      # only defensible while the two implementations agree, and until this job
+      # existed nothing checked: the script was run by hand, which means it would
+      # have been run once and then never again.
+      - name: Hold the SQL guess path to the TypeScript one
+        run: npx tsx supabase/scripts/verify-sql-parity.mts
+
   seed:
     name: word bank seed
     runs-on: ubuntu-latest

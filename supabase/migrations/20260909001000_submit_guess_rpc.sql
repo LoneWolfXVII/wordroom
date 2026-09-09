@@ -22,8 +22,8 @@
 -- scored a guess in production - `scoreGuess` appears there only in
 -- `features/game/dev/mock-api.ts`, a harness - so moving scoring here does not
 -- create a second implementation, it moves the only one. The TypeScript stays
--- for the mock and for its tests, and `_tests/sql-parity.test.ts` holds the two
--- to the same answers.
+-- for the mock and for its tests, and `supabase/scripts/verify-sql-parity.mts`
+-- holds the two to the same answers against a live database.
 
 -- ---------------------------------------------------------------------------
 -- Scoring: the two-pass Wordle rule, identical to `scoreGuess`.
@@ -369,24 +369,23 @@ declare
   v_hard      boolean;
   v_timer     text;
   v_guess     text := lower(btrim(coalesce(p_guess, '')));
-  v_marks     text[];
-  v_solved    boolean;
-  v_count     int;
-  v_finished  timestamptz;
   v_elapsed   int;
   v_limit     record;
-  v_violation jsonb;
-  v_is_word   boolean;
-  v_body      jsonb;
 begin
   if v_user is null then
     return jsonb_build_object('error', jsonb_build_object(
-      'code', 'unauthorised', 'message', 'Sign in to play.'));
+      'code', 'unauthorized', 'message', 'Sign in to play.'));
   end if;
 
-  -- Same budget as the Edge Function's limiter, and it must survive the rest of
-  -- this function returning an error, which is why nothing here raises.
-  select * into v_limit from public.rate_limit_hit('submit-guess:' || v_user::text, 60, 30);
+  -- SUBMIT_GUESS_LIMIT in `_shared/rate-limit.ts` — 60 a minute, and the
+  -- argument order is (key, window, max), which is how this shipped as 30 in
+  -- review and halved every player's budget. The Edge Function is still
+  -- deployed against the same key, so a mismatch here does not just tighten the
+  -- limit, it makes two live limiters disagree about one bucket.
+  --
+  -- The hit has to survive the rest of this function returning an error, which
+  -- is why nothing below raises out of the transaction.
+  select * into v_limit from public.rate_limit_hit('submit-guess:' || v_user::text, 60, 60);
   if not v_limit.allowed then
     return jsonb_build_object('error', jsonb_build_object(
       'code', 'rate_limited', 'message', 'Too many tries. Give it a minute.',
@@ -394,6 +393,15 @@ begin
   end if;
 
   -- Authorisation and every read the request needs, in one statement.
+  -- Authorisation: the join is the check. No row means the caller holds no
+  -- player in this puzzle's room — and it equally means the puzzle does not
+  -- exist, which is deliberately the same answer, so the id space cannot be
+  -- probed.
+  --
+  -- Two statements rather than one. `select pz.*, pl.* into v_puzzle, v_player`
+  -- reads like the obvious saving and is not legal plpgsql: a record variable
+  -- cannot share an INTO list. The second lookup is a point read on
+  -- `players_room_auth_key`, measured at well under a tenth of a millisecond.
   select pz.* into v_puzzle
     from public.puzzles pz
     join public.players pl on pl.room_id = pz.room_id and pl.auth_user_id = v_user
@@ -408,20 +416,81 @@ begin
     from public.players pl
    where pl.room_id = v_puzzle.room_id and pl.auth_user_id = v_user;
 
+  -- Serialise this player on this puzzle for the rest of the transaction.
+  --
+  -- Everything below is read-then-write: load the attempt, decide, upsert. Two
+  -- guesses in flight interleave those and one of them is lost — both callers
+  -- get marks, one guess reaches the row, and the board and the server disagree
+  -- about how many are left. A straggler landing after a solve can also write
+  -- `solved = false, finished_at = null` back over it and reopen a finished
+  -- attempt.
+  --
+  -- It happens not to occur today, because `rate_limit_hit` upserts this
+  -- player's row first and that row lock holds until commit. That is an
+  -- accident of statement order in a function that is meant to be reordered
+  -- freely, and the limiter was deliberately fail-open in TypeScript. This
+  -- makes the guarantee the function's own.
+  --
+  -- An advisory lock rather than `SELECT ... FOR UPDATE` because the first
+  -- guess of an attempt has no row to lock yet.
+  perform pg_advisory_xact_lock(hashtextextended(v_player.id::text || ':' || v_puzzle.id::text, 0));
+
   select a.* into v_attempt
     from public.attempts a
    where a.puzzle_id = v_puzzle.id and a.player_id = v_player.id;
 
   -- Hard mode and the timer are snapshotted when the attempt opens, so changing
   -- a setting mid-puzzle cannot change the rules of a puzzle in play.
+  --
+  -- `players.settings` is a jsonb column the client holds UPDATE on, so nothing
+  -- in it is a type — it is whatever that player last PATCHed. Casting it
+  -- (`::boolean`) hands them a way to make this function raise: the error goes
+  -- back through PostgREST with the failing row attached, which is their own
+  -- guesses printed into their own network tab, and the attempt cannot be
+  -- opened again until they fix the column. Compared against known values
+  -- instead, exactly as `readSettings()` did.
   v_settings := coalesce(v_player.settings, '{}'::jsonb);
-  v_hard  := coalesce(v_attempt.hard_mode,  coalesce((v_settings ->> 'hardMode')::boolean, false));
-  v_timer := coalesce(v_attempt.timer_mode, coalesce(v_settings ->> 'timerMode', 'off'));
+  -- `coalesce` around the extraction, not around the comparison: a missing key
+  -- gives NULL, and `NULL = 'true'` is NULL rather than false, which lands in a
+  -- NOT NULL column. Three-valued logic is the whole hazard of reading settings
+  -- a client can write.
+  v_hard  := coalesce(v_attempt.hard_mode, coalesce(v_settings ->> 'hardMode', '') = 'true');
+  v_timer := coalesce(
+    v_attempt.timer_mode,
+    case when v_settings ->> 'timerMode' in ('off', 'per-puzzle', 'per-guess', 'sprint')
+         then v_settings ->> 'timerMode' else 'off' end);
 
-  v_elapsed := case when v_timer = 'off' then null
-                    else greatest(coalesce(p_elapsed_ms, v_attempt.elapsed_ms, 0), 0) end;
-  return public.submit_guess_apply(
-    v_puzzle, v_player, v_attempt, v_guess, p_timed_out, v_elapsed, v_hard, v_timer);
+  -- Held monotonic, as `resolveElapsed` did: a later guess may not lower the
+  -- clock. Reported time is a client value and only ever breaks ties on the
+  -- leaderboard, but a number that can go backwards is a number that can be
+  -- walked backwards. Bounded above so a bad value cannot overflow the int
+  -- column and turn into a 400 with a row dump on it.
+  v_elapsed := case
+    when v_timer = 'off' then null
+    else least(greatest(coalesce(p_elapsed_ms, 0), coalesce(v_attempt.elapsed_ms, 0), 0), 86400000)
+  end;
+
+  -- Nothing below may reach the network as a Postgres error.
+  --
+  -- PostgREST returns a raised exception verbatim, and a constraint violation
+  -- carries `DETAIL: Failing row contains (...)` — which here is the caller's
+  -- own guesses and marks, printed into their own network tab. It leaks nothing
+  -- to anyone else, but it is a row dump where the Edge Function returned
+  -- `internal`, and the next `RAISE` added anywhere under here would inherit
+  -- that behaviour silently.
+  --
+  -- The handler is a subtransaction, so it rolls back a half-written attempt
+  -- while leaving the rate-limit hit above it standing — which is the point of
+  -- taking the hit before this block rather than inside it.
+  begin
+    return public.submit_guess_apply(
+      v_puzzle, v_player, v_attempt, v_guess, p_timed_out, v_elapsed, v_hard, v_timer);
+  exception
+    when others then
+      raise warning 'submit_guess failed for puzzle %: % (%)', p_puzzle_id, sqlerrm, sqlstate;
+      return jsonb_build_object('error', jsonb_build_object(
+        'code', 'internal', 'message', 'Something went wrong. Try again.'));
+  end;
 end;
 $$;
 
