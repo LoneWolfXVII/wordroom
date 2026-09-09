@@ -23,7 +23,7 @@ import { createRoom, joinRoom } from './api'
 import { resolveRoomsError } from './errors'
 import { checkPlayerName, PLAYER_NAME_MAX, playerNameProblemMessage } from './names'
 import { useSession } from './session'
-import { getPendingSeat, type PendingSeat, setActiveRoomId, setPendingSeat } from './storage'
+import { getPendingSeat, type PendingSeat, setActiveRoom, setPendingSeat } from './storage'
 import { roomKeys } from './use-rooms'
 
 const NAME_FIELD_ID = 'playerName'
@@ -102,7 +102,7 @@ export function NameScreen() {
           ? await createRoom({ roomName: pending.roomName, playerName })
           : await joinRoom({ code: pending.code, playerName })
 
-      setActiveRoomId(seat.room.id)
+      setActiveRoom({ id: seat.room.id, name: seat.room.name })
       setPendingSeat(null)
 
       // Seed the cache with what the server just told us, so the lobby has the

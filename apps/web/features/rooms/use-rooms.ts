@@ -7,7 +7,7 @@ import { getBrowserClient } from '@/lib/supabase'
 import { fetchPuzzleStatuses } from './puzzle-status'
 import { fetchMembers, fetchMySeats, fetchRoom } from './queries'
 import { useSession } from './session'
-import { getActiveRoomId, setActiveRoomId } from './storage'
+import { getActiveRoom, getActiveRoomId, setActiveRoom } from './storage'
 
 /** Query keys, in one place so a realtime event can invalidate the right one. */
 export const roomKeys = {
@@ -58,8 +58,25 @@ export function useActiveSeat(): {
   const room = useRoom(player?.roomId ?? null)
 
   useEffect(() => {
-    if (player) setActiveRoomId(player.roomId)
-  }, [player])
+    if (player) {
+      // The name goes in as well, because the home screen paints its resume
+      // card from this before either query has landed. It is never downgraded
+      // back to null while the id is unchanged: between the seats query landing
+      // and the room query landing there is no name to hand over, and wiping
+      // the one already stored is exactly how the card would start arriving
+      // late again.
+      const cached = getActiveRoom()
+      setActiveRoom({
+        id: player.roomId,
+        name: room.data?.name ?? (cached?.id === player.roomId ? cached.name : null),
+      })
+      return
+    }
+
+    // Settled, and this account holds no seat anywhere. Whatever is cached is a
+    // lie — clear it, or the home screen keeps offering a room to go back to.
+    if (!seats.isPending && !seats.isFetching && seats.data !== undefined) setActiveRoom(null)
+  }, [player, room.data, seats.isPending, seats.isFetching, seats.data])
 
   // One object per (player, room), not one per render. The game route keys two
   // effects on this — configuring the store and fetching the puzzle — and a

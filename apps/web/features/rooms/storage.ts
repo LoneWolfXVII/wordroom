@@ -48,13 +48,48 @@ function write(kind: Store, key: string, value: string | null): void {
 /* Active room                                                                */
 /* -------------------------------------------------------------------------- */
 
-/** The room id to reopen on the next visit. Null until a seat is taken. */
-export function getActiveRoomId(): string | null {
-  return read('local', ACTIVE_ROOM_KEY)
+/**
+ * The room to reopen on the next visit, and what it is called.
+ *
+ * The name is stored for exactly one reason: the home screen's resume card has
+ * to be on screen at first paint, and the real name is two round trips away —
+ * the seats query, then the room. It is still a preference like everything else
+ * here. It never decides *whether* there is a seat to go back to; `fetchMySeats`
+ * does, and `useActiveSeat` clears this the moment that says there is none.
+ */
+export interface ActiveRoom {
+  id: string
+  /** Null when the id was stored before the room's name was known. */
+  name: string | null
 }
 
-export function setActiveRoomId(roomId: string | null): void {
-  write('local', ACTIVE_ROOM_KEY, roomId)
+export function getActiveRoom(): ActiveRoom | null {
+  const raw = read('local', ACTIVE_ROOM_KEY)
+  if (!raw) return null
+
+  // Installs from before the name was kept hold a bare id under this key. That
+  // reads as "id, no name": those players get one late-arriving card, once,
+  // and the next write upgrades them.
+  if (!raw.startsWith('{')) return { id: raw, name: null }
+
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const value = parsed as Partial<ActiveRoom>
+    if (typeof value.id !== 'string' || value.id === '') return null
+    return { id: value.id, name: typeof value.name === 'string' ? value.name : null }
+  } catch {
+    return null
+  }
+}
+
+/** The room id to reopen on the next visit. Null until a seat is taken. */
+export function getActiveRoomId(): string | null {
+  return getActiveRoom()?.id ?? null
+}
+
+export function setActiveRoom(room: ActiveRoom | null): void {
+  write('local', ACTIVE_ROOM_KEY, room === null ? null : JSON.stringify(room))
 }
 
 /* -------------------------------------------------------------------------- */
