@@ -26,6 +26,7 @@ import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/featu
 import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
 import {
   applyPendingSettings,
+  BuildStamp,
   createSettingsSource,
   SettingsSheet,
   useSettingsConnection,
@@ -185,7 +186,12 @@ export function GameRoute() {
       <SettingsSheet
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        footer={<AccountSettingRow returnPath="/game" />}
+        footer={
+          <>
+            <AccountSettingRow returnPath="/game" />
+            <BuildStamp />
+          </>
+        }
       />
     </>
   )

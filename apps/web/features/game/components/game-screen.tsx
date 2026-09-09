@@ -120,7 +120,17 @@ export function GameScreen({
 
   return (
     <Screen className={styles.game}>
-      <header className="grid min-h-14 flex-none grid-cols-[1fr_auto_1fr] items-center pt-1.5">
+      {/*
+       * `minmax(0,1fr)`, not `1fr`. A bare `1fr` is `minmax(auto,1fr)`, so a
+       * column refuses to shrink below its content — and the room-name button
+       * on the left is wider than the two icons on the right, so it took more
+       * than its half and pushed the puzzle number off centre. A long room name
+       * moved "No. 2" 25px to the right of the board it sits above.
+       *
+       * Zero as the floor lets both sides settle equal and truncate instead.
+       * The number is what has to be centred; the room name already ellipsises.
+       */}
+      <header className="grid min-h-14 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center pt-1.5">
         <div>
           {onOpenRoom === undefined ? null : (
             <button

@@ -39,7 +39,15 @@
  *     offline-first badly enough to accept that risk.
  */
 
-const VERSION = 'v1'
+/*
+ * The build this worker belongs to, from its own registration URL
+ * (`/sw.js?v=abc1234`). A worker script is identified by URL, so a new build
+ * registers a genuinely new worker rather than hoping the browser revalidates
+ * this file — and because the cache names carry the same value, `activate`
+ * below deletes the previous build's cache instead of leaving it to accumulate
+ * one deploy's chunks at a time, forever.
+ */
+const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev'
 const SHELL = `wordroom-shell-${VERSION}`
 const ASSETS = `wordroom-assets-${VERSION}`
 const KEEP = [SHELL, ASSETS]

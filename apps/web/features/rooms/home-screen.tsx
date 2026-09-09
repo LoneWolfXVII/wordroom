@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Button, Icon, Screen, ScreenFooter } from '@/components/ui'
-import { BackIcon } from '@/components/ui/icons'
+import { PlayersIcon } from '@/components/ui/icons'
 import { DemoTiles } from './demo-tiles'
 import { RulesSheet } from './rules-sheet'
 import { useActiveSeat } from './use-rooms'
@@ -38,13 +38,13 @@ export function HomeScreen() {
         {seat ? (
           <Button asChild variant="primary">
             {/*
-             * The icon is not decoration. This sits above two buttons that are
-             * also a room and also a tap away, and without it the three read as
-             * one list of equal choices - the arrow is what says this one is a
-             * return rather than a start.
+             * A room, not an arrow. This sits above two buttons that are also a
+             * room and also a tap away, so it needs something to separate it -
+             * but a back chevron says "retreat", and going to the room you are
+             * already in is not a retreat. The people are the room.
              */}
             <Link href="/lobby">
-              <Icon icon={BackIcon} size={18} />
+              <Icon icon={PlayersIcon} size={18} />
               Back to {seat.room.name}
             </Link>
           </Button>

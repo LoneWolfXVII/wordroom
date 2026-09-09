@@ -213,15 +213,22 @@
  * Vaul draws a 200%-wide `::after` just outside the panel, in the drag
  * direction, so an overdrag never reveals the page behind it. That filler is
  * invisible only while the panel is flush to the viewport edge — and from
- * `--breakpoint-panel` up ours is inset 24px, so 24px of the filler showed as a
- * pale strip down the right of the sheet.
+ * `--breakpoint-panel` up ours is inset 24px, so 24px of the filler paints
+ * `--surface` down the right of the sheet where the scrim should be.
  *
  * At that size the panel is not draggable, so the filler is covering nothing.
  * Removed there and left alone on the phone, where the bottom sheet does drag.
- * Unlayered and at (0,2,0) to beat Vaul's own unlayered (0,1,0) rule.
+ *
+ * The specificity has to be counted, not guessed. Vaul's rule is
+ * `[data-vaul-drawer]:not([data-vaul-custom-container='true'])::after`, and
+ * `:not()` takes the specificity of its argument — so that is (0,2,0), not the
+ * (0,1,0) it reads as. An earlier attempt at this used
+ * `[data-vaul-drawer].wr-sheet::after`, also (0,2,0), which tied and lost on
+ * source order: the strip stayed, and shipped. Naming the direction as well
+ * makes it (0,3,0), and names the only case that can show the filler.
  */
 @media (min-width: 820px) {
-  [data-vaul-drawer].wr-sheet::after {
+  [data-vaul-drawer][data-vaul-drawer-direction='right'].wr-sheet::after {
     content: none;
   }
 }
