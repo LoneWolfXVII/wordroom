@@ -150,6 +150,15 @@ export class ApiUser {
     return expiresAt * 1000 - Date.now() < 60_000
   }
 
+  /**
+   * An Edge Function. Still how rooms are created and joined.
+   *
+   * The guess path is not here any more — see `rpc` below. That distinction is
+   * not cosmetic: `submit-guess` has been deleted from the project, so calling
+   * it returns 404, and this harness calling it is how the whole suite went red
+   * after the deploy. The app had already moved; nothing had checked that the
+   * tests had.
+   */
   async call<T>(fn: string, body: unknown): Promise<T> {
     if (this.isStale) await this.refresh()
     const env = requireSupabaseEnv()
@@ -182,13 +191,50 @@ export class ApiUser {
     return this.call('join-room', { code, playerName })
   }
 
+  /**
+   * A PostgREST function. The app's hot path, so the harness must take it too:
+   * a probe that reaches the database by a route no player uses is testing
+   * something nobody runs.
+   *
+   * These answer 200 with an error envelope rather than a status, so the body
+   * is what says whether it worked.
+   */
+  async rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
+    if (this.isStale) await this.refresh()
+    const env = requireSupabaseEnv()
+    const res = await fetch(`${env.url}/rest/v1/rpc/${name}`, {
+      method: 'POST',
+      headers: {
+        apikey: env.anonKey,
+        authorization: `Bearer ${this.accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(args),
+    })
+    const parsed = (await res.json()) as T & ErrorBody
+    if (!res.ok || parsed.error !== undefined) {
+      throw new EdgeError(
+        name,
+        res.status,
+        parsed.error?.code ?? 'unknown',
+        parsed.error?.message ?? 'no message',
+      )
+    }
+    return parsed
+  }
+
   async getPuzzle(roomId: string, mode: number, number: number): Promise<Puzzle> {
     const { puzzle } = await this.call<{ puzzle: Puzzle }>('get-puzzle', { roomId, mode, number })
     return puzzle
   }
 
   submitGuess(puzzleId: string, guess: string): Promise<GuessResult> {
-    return this.call('submit-guess', { puzzleId, guess })
+    return this.rpc('submit_guess', {
+      p_puzzle_id: puzzleId,
+      p_guess: guess,
+      p_elapsed_ms: null,
+      p_timed_out: false,
+    })
   }
 }
 
