@@ -2,7 +2,10 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Button, Screen, ScreenFooter, toast } from '@/components/ui'
+import { Button, Icon, Screen, ScreenFooter, toast } from '@/components/ui'
+import { PlayersIcon } from '@/components/ui/icons'
+import { AuthFailureArt } from './auth-art'
+import { readAuthFailure } from './auth-error'
 import { useSession } from './session'
 import { getReturnPath, setReturnPath } from './storage'
 
@@ -24,16 +27,16 @@ export function AuthCallbackScreen() {
   const [slow, setSlow] = useState(false)
 
   // The provider reports a refusal in the query string rather than by failing
-  // the redirect.
-  const denied = params.get('error_description') ?? params.get('error')
+  // the redirect, and each refusal needs a different sentence — see auth-error.
+  const failure = readAuthFailure(params)
 
   useEffect(() => {
-    if (denied || status !== 'ready') return
+    if (failure || status !== 'ready') return
     const destination = getReturnPath() ?? '/lobby'
     setReturnPath(null)
     if (!isAnonymous) toast('Signed in')
     router.replace(destination)
-  }, [denied, status, isAnonymous, router])
+  }, [failure, status, isAnonymous, router])
 
   // If the exchange never resolves, offer a way out rather than a spinner
   // that never stops.
@@ -44,20 +47,22 @@ export function AuthCallbackScreen() {
 
   return (
     <Screen>
-      <div className="m-auto max-w-[30ch] text-center">
-        <p className="text-[15px] text-ink-2">
-          {denied ? 'That sign-in did not complete.' : 'Signing you in…'}
-        </p>
-        {denied ? (
-          <p className="mt-2 text-[13px] text-muted">
-            Your room and your name are unchanged. You can carry on as a guest.
-          </p>
-        ) : null}
+      <div className="m-auto max-w-[32ch] text-center">
+        {failure ? (
+          <>
+            <AuthFailureArt />
+            <h1 className="text-[19px] leading-tight font-semibold text-ink">{failure.title}</h1>
+            <p className="mt-2 text-[14px] leading-[1.45] text-ink-2">{failure.detail}</p>
+          </>
+        ) : (
+          <p className="text-[15px] text-ink-2">Signing you in…</p>
+        )}
       </div>
 
-      {denied || slow ? (
+      {failure || slow ? (
         <ScreenFooter>
           <Button variant="primary" onClick={() => router.replace(getReturnPath() ?? '/lobby')}>
+            <Icon icon={PlayersIcon} size={18} />
             Back to your room
           </Button>
         </ScreenFooter>

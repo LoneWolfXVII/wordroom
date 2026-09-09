@@ -20,7 +20,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Screen } from '@/components/ui'
+import { Button, Icon, Screen } from '@/components/ui'
+import { HomeIcon } from '@/components/ui/icons'
 import { createGameApi, GameScreen, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
 import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
@@ -141,7 +142,10 @@ export function GameRoute() {
         <p className="mt-auto text-[15px] text-ink-2">You are not in a room yet.</p>
         <div className="mt-auto pb-5">
           <Button asChild variant="primary">
-            <a href="/">Back to start</a>
+            <a href="/">
+              <Icon icon={HomeIcon} size={18} />
+              Back to start
+            </a>
           </Button>
         </div>
       </Screen>

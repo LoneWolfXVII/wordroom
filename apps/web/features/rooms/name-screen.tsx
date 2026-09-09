@@ -8,6 +8,7 @@ import {
   Button,
   Field,
   Help,
+  Icon,
   IconButton,
   Input,
   Label,
@@ -18,7 +19,7 @@ import {
   ScreenTop,
   Sheet,
 } from '@/components/ui'
-import { BackIcon } from '@/components/ui/icons'
+import { BackIcon, ForwardIcon, LockIcon } from '@/components/ui/icons'
 import { createRoom, joinRoom } from './api'
 import { resolveRoomsError } from './errors'
 import { checkPlayerName, PLAYER_NAME_MAX, playerNameProblemMessage } from './names'
@@ -220,6 +221,7 @@ export function NameScreen() {
 
       <ScreenFooter>
         <Button variant="primary" disabled={!canContinue} onClick={() => setConfirming(true)}>
+          <Icon icon={ForwardIcon} size={18} />
           Continue
         </Button>
       </ScreenFooter>
@@ -236,7 +238,12 @@ export function NameScreen() {
           <Button onClick={() => setConfirming(false)} disabled={busy}>
             Go back
           </Button>
+          {/* The one irreversible tap in onboarding, so it says so twice: the
+              sheet explains, and the padlock is the same glyph the locked name
+              carries afterwards. "Go back" stays plain — an icon on the way out
+              of a confirmation is noise. */}
           <Button variant="primary" loading={busy} onClick={lock}>
+            <Icon icon={LockIcon} size={18} />
             Lock it
           </Button>
         </div>

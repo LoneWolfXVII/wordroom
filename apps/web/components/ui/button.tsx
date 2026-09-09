@@ -30,12 +30,22 @@ export const buttonVariants = cva(
         danger: 'border-line bg-surface text-danger',
       },
       size: {
-        /** `.btn` — the full-width action at the bottom of a screen. */
-        default: 'h-[52px] text-base',
-        /** `.btn.ghost` — the quieter third action. */
+        /**
+         * `.btn` — the full-width action at the bottom of a screen. 48px, down
+         * from 52: at 52 a screen with three of them plus a ghost read as a
+         * wall of slabs, and the height was doing none of the work — the accent
+         * carries the hierarchy.
+         */
+        default: 'h-12 text-base',
+        /**
+         * `.btn.ghost` — the quieter third action. Stays at 44px deliberately.
+         * That is the floor for a touch target, and this is a phone-first game;
+         * trimming it with the others would have made the one control people
+         * reach for one-handed the hardest to hit.
+         */
         md: 'h-11 text-base',
         /** `.btn.sm` — inline, sized to its label. */
-        sm: 'h-10 w-auto px-[14px] text-sm',
+        sm: 'h-[38px] w-auto px-3 text-sm',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

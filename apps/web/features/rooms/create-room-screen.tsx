@@ -6,6 +6,7 @@ import {
   Button,
   Field,
   Help,
+  Icon,
   IconButton,
   Input,
   Label,
@@ -15,7 +16,7 @@ import {
   ScreenTitle,
   ScreenTop,
 } from '@/components/ui'
-import { BackIcon } from '@/components/ui/icons'
+import { BackIcon, PlusIcon } from '@/components/ui/icons'
 import { checkRoomName, ROOM_NAME_MAX } from './names'
 import { setPendingSeat } from './storage'
 
@@ -82,6 +83,7 @@ export function CreateRoomScreen() {
 
       <ScreenFooter>
         <Button variant="primary" disabled={problem !== null} onClick={submit}>
+          <Icon icon={PlusIcon} size={18} />
           Create room
         </Button>
       </ScreenFooter>

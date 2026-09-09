@@ -4,7 +4,7 @@ import { MAX_GUESSES, type ScoredGuess } from '@wordroom/shared'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Badge, Button, Icon, MiniGrid, Sheet, StatGrid, StatTile, toast } from '@/components/ui'
-import { LettersIcon } from '@/components/ui/icons'
+import { ForwardIcon, LettersIcon, ShareIcon } from '@/components/ui/icons'
 import {
   lettersShareWarning,
   type ShareInput,
@@ -152,8 +152,12 @@ export function ResultSheet({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2.5">
-              <Button onClick={() => void share(spoilerFreeShare(input))}>Share</Button>
+              <Button onClick={() => void share(spoilerFreeShare(input))}>
+                <Icon icon={ShareIcon} size={18} />
+                Share
+              </Button>
               <Button variant="primary" loading={loadingNext} onClick={onNext}>
+                <Icon icon={ForwardIcon} size={18} />
                 Next puzzle
               </Button>
             </div>
