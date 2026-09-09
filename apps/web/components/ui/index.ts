@@ -34,7 +34,15 @@ export {
 } from './segmented-control'
 export { SettingNote, SettingRow, type SettingRowProps } from './setting-row'
 export { Sheet, type SheetProps } from './sheet'
+export {
+  BoardSkeleton,
+  LobbySkeleton,
+  ScreenFallback,
+  Skeleton,
+  StatsSkeleton,
+} from './skeleton'
 export { StatGrid, type StatGridProps, StatTile, type StatTileProps } from './stat-tile'
 export { Stepper, type StepperProps } from './stepper'
 export { Switch, type SwitchProps } from './switch'
+export { TileArt, type TileArtVariant } from './tile-art'
 export { Toaster, toast } from './toast'

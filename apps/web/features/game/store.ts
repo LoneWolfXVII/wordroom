@@ -13,6 +13,7 @@ import { type GameApi, GameApiError, type GuessResult, getGameApi } from './api'
 import { isKnownWord, preloadGuessList } from './guess-list'
 import { accumulateKeyStates, type KeyStates, mergeKeyState } from './keys'
 import { prefersReducedMotion, STRUCT_MS, wait } from './motion'
+import { clearPrefetched, prefetchPuzzle, takePrefetched } from './prefetch'
 
 /**
  * The game store.
@@ -205,6 +206,25 @@ export const useGameStore = create<GameStore>()((set, get) => {
   let api: GameApi | null = null
   const transport = (): GameApi => api ?? getGameApi()
 
+  /**
+   * Start fetching the puzzle after this one.
+   *
+   * Called the instant an attempt ends, which is the start of the several
+   * seconds a player spends on the result sheet. By the time they tap "Next
+   * puzzle" the answer is usually already here, so the tap costs a promise
+   * resolution rather than a round trip — the difference between roughly half a
+   * second on a phone and nothing at all.
+   *
+   * Only ever the immediate next puzzle in the mode being played: a player who
+   * stops here should not have caused a row to be written for a puzzle nobody
+   * reached.
+   */
+  const queueNextPuzzle = (read: () => GameStore): void => {
+    const { room, puzzle, mode } = read()
+    if (room === null || puzzle === null) return
+    prefetchPuzzle(transport(), { roomId: room.id, mode, number: puzzle.number + 1 })
+  }
+
   /** Monotonic, so the same message twice in a row still shows twice. */
   let noticeToken = 0
 
@@ -221,6 +241,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
     configure({ room, mode, numbers, settings, api: injected }) {
       if (injected !== undefined) api = injected
+      // Another room's prefetches are not this room's. The keys carry the room
+      // id so a stale entry can never be served, but there is no reason to keep
+      // paying to hold them.
+      clearPrefetched()
       set((state) => {
         // Pointing the store at a different room must not leave the previous
         // room's puzzle, board and key colours on screen. The store is module
@@ -250,7 +274,12 @@ export const useGameStore = create<GameStore>()((set, get) => {
       preloadGuessList(mode)
 
       try {
-        const puzzle = await transport().getPuzzle({ roomId: room.id, mode, number })
+        // A prefetch started when the last attempt ended is usually settled by
+        // now, which is the whole point: the tap costs nothing the player waits
+        // for. Falling back to a fresh call keeps this the only place that
+        // decides how a puzzle is loaded.
+        const request = { roomId: room.id, mode, number }
+        const puzzle = await (takePrefetched(request) ?? transport().getPuzzle(request))
         set((state) => {
           const fresh = freshPuzzleState(Date.now(), state.pendingSettings)
           // A restored attempt only replaces the empty board; everything else a
@@ -389,6 +418,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       const elapsed = state.frozenMs ?? Date.now() - (state.startedAt ?? Date.now())
 
       if (result.solved) {
+        queueNextPuzzle(get)
         set({
           status: 'solved',
           bounceRow: state.guesses.length - 1,
@@ -401,6 +431,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       }
 
       if (result.finished) {
+        queueNextPuzzle(get)
         set({
           status: 'failed',
           revealedWord: result.word,

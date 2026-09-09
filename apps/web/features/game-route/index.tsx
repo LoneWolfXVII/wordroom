@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Icon, Screen } from '@/components/ui'
+import { Button, Icon, Screen, TileArt } from '@/components/ui'
 import { HomeIcon } from '@/components/ui/icons'
 import { createGameApi, GameScreen, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
@@ -139,8 +139,17 @@ export function GameRoute() {
   if (!seat) {
     return (
       <Screen>
-        <p className="mt-auto text-[15px] text-ink-2">You are not in a room yet.</p>
-        <div className="mt-auto pb-5">
+        <div className="m-auto max-w-[32ch] text-center">
+          <TileArt variant="waiting" />
+          <h1 className="text-[19px] leading-tight font-semibold text-ink">
+            You are not in a room yet.
+          </h1>
+          <p className="mt-2 text-[14px] leading-[1.45] text-ink-2">
+            Puzzles live inside a room, so that you and your friends get the same words. Create one
+            or join with a code.
+          </p>
+        </div>
+        <div className="pb-5">
           <Button asChild variant="primary">
             <a href="/">
               <Icon icon={HomeIcon} size={18} />
