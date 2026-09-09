@@ -59,6 +59,16 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Both seeds are generated rather than committed, and `supabase start`
+      # loads them from the paths in config.toml only if they are on disk. The
+      # scoring and hard-mode comparisons do not care, but the puzzle-sequence
+      # check below reads `word_bank` itself — against an unseeded database it
+      # compares two empty banks and fails. This is the step that was missing.
+      - name: Generate the seeds
+        run: |
+          node supabase/scripts/seed-word-bank.mjs
+          node supabase/scripts/seed-guess-bank.mjs
+
       # Pinned, not `latest`. Resolving "latest" asks the GitHub API for the
       # newest release, and that call is unauthenticated and rate limited: it
       # failed three times in one afternoon, each time skipping the comparison

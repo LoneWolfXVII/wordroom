@@ -142,19 +142,34 @@ if (messageMismatch.length) console.log(messageMismatch.slice(0, 6).join('\n'))
 // so it is compared at the end of the chain - the word, not the index. An
 // implementation that is nearly right changes every room's sequence silently.
 // ---------------------------------------------------------------------------
-const counts = JSON.parse(
-  execFileSync(
-    'psql',
-    [
-      DB,
-      '-t',
-      '-A',
-      '-c',
-      'select json_object_agg(len, n) from (select len, count(*) n from public.word_bank group by len) x;',
-    ],
-    { encoding: 'utf8' },
-  ),
-) as Record<string, number>
+const countsRaw = execFileSync(
+  'psql',
+  [
+    DB,
+    '-t',
+    '-A',
+    '-c',
+    'select json_object_agg(len, n) from (select len, count(*) n from public.word_bank group by len) x;',
+  ],
+  { encoding: 'utf8' },
+).trim()
+
+// `json_object_agg` over no rows is NULL, which psql prints as the empty string
+// and `JSON.parse` rejects with "Unexpected end of JSON input" — a stack trace
+// that says nothing about the actual problem. The seeds are generated rather
+// than committed, so an unseeded database is the likeliest way to arrive here.
+if (countsRaw === '') {
+  console.error(
+    'public.word_bank is empty, so there is no sequence to compare.\n' +
+      'Generate the seeds and reload them:\n' +
+      '  node supabase/scripts/seed-word-bank.mjs\n' +
+      '  node supabase/scripts/seed-guess-bank.mjs\n' +
+      '  supabase db reset',
+  )
+  process.exit(1)
+}
+
+const counts = JSON.parse(countsRaw) as Record<string, number>
 
 const seqRows: string[] = []
 const seqLabels: string[] = []
