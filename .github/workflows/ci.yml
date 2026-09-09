@@ -252,6 +252,17 @@ jobs:
             printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
           } > apps/web/.env.local
 
+      # `--with-deps` runs `apt-get update` across every source on the runner,
+      # and the image ships Google's Chrome repo. On 9 Sep that repo served a
+      # Release file newer than its own Packages.gz, so apt failed the hash
+      # check, `playwright install` exited 100, and this job reported a
+      # Playwright failure having never built or run a test. We install
+      # Chromium from Playwright's own download, not from Google's apt repo, so
+      # the source is pure overhead here — dropping it removes a third party
+      # from the critical path of every pull request.
+      - name: Drop package sources this job does not need
+        run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
