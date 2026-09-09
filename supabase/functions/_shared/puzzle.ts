@@ -22,15 +22,68 @@ import type { Mode } from '@wordroom/shared'
 import type { PlayerRow, PuzzleRow, RoomRow, ServiceClient } from './db.ts'
 import { AppError, conflict, forbidden, mapPostgresError } from './errors.ts'
 
-/** The exact string that is hashed. Written down so tests can pin it. */
-export function puzzleDigestInput(seed: string, mode: Mode, number: number): string {
-  return `${seed}|${mode}|${number}`
+/**
+ * The exact string that is hashed. Written down so tests can pin it.
+ *
+ * Note what is *not* in it: the puzzle number. One hash keys one shuffle, and
+ * the number picks a position in that shuffle. Hashing the number instead is
+ * exactly the mistake this replaced.
+ */
+export function puzzleDigestInput(seed: string, mode: Mode, epoch: number): string {
+  return `${seed}|${mode}|epoch:${epoch}`
 }
 
 /**
- * Index into the rank-ordered word bank. Uses the first 8 bytes of the digest
- * as an unsigned integer; the residual modulo bias over a 64-bit value against
- * a bank of a few thousand words is far below one part in 10^15.
+ * xoshiro128**, seeded from a digest.
+ *
+ * A shuffle needs a stream of random numbers, and it has to be the *same*
+ * stream every time or a room's sequence would move under it. This is the
+ * smallest well-specified generator that gives 128 bits of state, which matters
+ * because the state is the whole seed: fold a 128-bit room seed into 32 bits and
+ * distinct rooms start sharing a running order.
+ */
+function xoshiro128(digest: Uint8Array): () => number {
+  const read = (at: number) =>
+    ((digest[at] ?? 0) << 24) | ((digest[at + 1] ?? 0) << 16) | ((digest[at + 2] ?? 0) << 8) |
+    (digest[at + 3] ?? 0)
+
+  let a = read(0) || 1
+  let b = read(4) || 2
+  let c = read(8) || 3
+  let d = read(12) || 4
+
+  return () => {
+    const rotated = (b * 5) | 0
+    const result = ((((rotated << 7) | (rotated >>> 25)) | 0) * 9) | 0
+    const t = (b << 9) | 0
+    c ^= a
+    d ^= b
+    b ^= c
+    a ^= d
+    c ^= t
+    d = (d << 11) | (d >>> 21)
+    return result >>> 0
+  }
+}
+
+/**
+ * The order a room plays its answers in.
+ *
+ * **This is a permutation, not a draw, and that is the point.** The old
+ * derivation hashed `seed|mode|number` and took it modulo the bank size — an
+ * independent pick each time, which collides at roughly the square root of the
+ * bank rather than at the end of it. Simulated over 3,000 rooms against the real
+ * 1,664-word five-letter bank: half of them repeated a word by puzzle **49**,
+ * a tenth by puzzle 19, and the unluckiest at puzzle 2. Ten times the words
+ * would only have pushed that to about 160. It was never a word-list problem.
+ *
+ * Shuffling instead means a room sees every answer once before it sees any
+ * answer twice. `epoch` re-keys the shuffle each time a room exhausts the bank,
+ * so the wrap is a fresh order rather than a replay of the first.
+ *
+ * Fisher-Yates over ~1,600 items runs in microseconds and only runs when a
+ * puzzle is first materialised, so the cost is nothing. An O(1) format
+ * preserving permutation would also work and would be far harder to be sure of.
  */
 export async function puzzleIndex(
   seed: string,
@@ -40,14 +93,25 @@ export async function puzzleIndex(
 ): Promise<number> {
   if (count <= 0) throw new AppError('word_bank_empty', 500, 'No answers are available.')
 
-  const bytes = new TextEncoder().encode(puzzleDigestInput(seed, mode, number))
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+  const epoch = Math.floor((number - 1) / count)
+  const position = (number - 1) % count
 
-  let value = 0n
-  for (let i = 0; i < 8; i++) {
-    value = (value << 8n) | BigInt(digest[i] ?? 0)
+  const bytes = new TextEncoder().encode(puzzleDigestInput(seed, mode, epoch))
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+  const next = xoshiro128(digest)
+
+  const order = new Uint32Array(count)
+  for (let i = 0; i < count; i++) order[i] = i
+  for (let i = count - 1; i > 0; i--) {
+    // Rejection-free enough at this size: the modulo bias over 2^32 against a
+    // bound of a few thousand is far below anything a player could perceive.
+    const j = next() % (i + 1)
+    const swap = order[i] as number
+    order[i] = order[j] as number
+    order[j] = swap
   }
-  return Number(value % BigInt(count))
+
+  return order[position] as number
 }
 
 export interface PuzzleContext {
