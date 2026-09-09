@@ -98,6 +98,11 @@ jobs:
       - name: Validate guess dictionary
         run: node supabase/scripts/seed-guess-bank.mjs --check
 
+      # The browser calls PostgREST directly now, so an RPC without a migration
+      # is 404 on every request rather than a broken corner of one function.
+      - name: Every RPC the app calls has a migration
+        run: node supabase/scripts/check-rpc-migrations.mjs
+
   functions:
     name: edge functions
     runs-on: ubuntu-latest

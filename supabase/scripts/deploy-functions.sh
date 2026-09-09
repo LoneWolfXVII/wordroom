@@ -42,6 +42,29 @@ if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
   exit 1
 fi
 
+# Refuse to deploy onto a schema that cannot serve the code being deployed.
+#
+# This script used to know nothing about migrations, which was survivable while
+# only Edge Functions talked to the database: a stale schema meant one function
+# returning 500. The browser now calls PostgREST directly, so a missing function
+# is `404 PGRST202` on every guess and the game is unplayable — and the deploy
+# that caused it would still have printed "done".
+#
+# The check itself lives in check-rpc-migrations.mjs, so CI and this script read
+# the same list from the same place rather than drifting apart.
+if [ -f "$ROOT/apps/web/.env.production.local" ]; then
+  SUPABASE_URL=$(grep -m1 '^NEXT_PUBLIC_SUPABASE_URL=' "$ROOT/apps/web/.env.production.local" | cut -d= -f2- | tr -d '"')
+  SUPABASE_KEY=$(grep -m1 '^NEXT_PUBLIC_SUPABASE_ANON_KEY=' "$ROOT/apps/web/.env.production.local" | cut -d= -f2- | tr -d '"')
+  if [ -n "${SUPABASE_URL:-}" ] && [ -n "${SUPABASE_KEY:-}" ]; then
+    echo "==> checking the deployed schema can serve this code"
+    node "$ROOT/supabase/scripts/check-rpc-migrations.mjs" --probe "$SUPABASE_URL" "$SUPABASE_KEY"
+  else
+    echo "note: no url/key in apps/web/.env.production.local; skipping the schema check." >&2
+  fi
+else
+  echo "note: apps/web/.env.production.local not found; skipping the schema check." >&2
+fi
+
 echo "==> vendoring @wordroom/shared for the bundler"
 vendor_shared "$ROOT"
 
