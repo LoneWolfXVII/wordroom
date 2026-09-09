@@ -21,7 +21,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Screen } from '@/components/ui'
-import { createEdgeGameApi, GameScreen, useGameStore } from '@/features/game'
+import { createGameApi, GameScreen, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
 import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
 import {
@@ -91,8 +91,7 @@ export function GameRoute() {
     const supabase = getBrowserClient()
     configure({
       room: { id: seat.room.id, name: seat.room.name, code: seat.room.code },
-      api: createEdgeGameApi({
-        functionsUrl: `${env.url.replace(/\/$/, '')}/functions/v1`,
+      api: createGameApi({
         restUrl: `${env.url.replace(/\/$/, '')}/rest/v1`,
         anonKey: env.anonKey,
         getAccessToken: async () => {
