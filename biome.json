@@ -86,6 +86,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["supabase/scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
     }
   ]
 }
