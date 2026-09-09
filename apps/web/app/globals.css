@@ -85,6 +85,31 @@
     }
   }
 
+  /*
+   * The room-name marquee. Spotify's shape: sit still long enough to be read,
+   * travel to the end, sit again, come back. The pauses are most of the cycle —
+   * text that is always moving is harder to read than text that is truncated.
+   *
+   * `--marquee-shift` and `--marquee-duration` come from `ScrollingText`, which
+   * measures the actual overflow; nothing here assumes a length. The global
+   * reduced-motion rule collapses this to a single frame, leaving the mask to
+   * say there is more.
+   */
+  @keyframes wr-marquee {
+    0%,
+    18% {
+      transform: translateX(0);
+    }
+    46%,
+    64% {
+      transform: translateX(var(--marquee-shift, 0));
+    }
+    92%,
+    100% {
+      transform: translateX(0);
+    }
+  }
+
   @keyframes up {
     from {
       opacity: 0;
@@ -270,4 +295,12 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/*
+ * Applied by `ScrollingText` only when the text actually overflows, so a name
+ * that fits animates nothing at all.
+ */
+@utility wr-marquee {
+  animation: wr-marquee var(--marquee-duration, 6s) ease-in-out infinite;
 }

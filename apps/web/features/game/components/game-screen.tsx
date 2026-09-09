@@ -3,8 +3,8 @@
 import { MODES, type Mode } from '@wordroom/shared'
 import { useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
-import { Icon, IconButton, Screen, SegmentedControl } from '@/components/ui'
-import { ForwardIcon, LeaderboardIcon, SettingsIcon } from '@/components/ui/icons'
+import { Button, Icon, IconButton, Screen, ScrollingText, SegmentedControl } from '@/components/ui'
+import { ForwardIcon, LeaderboardIcon, ResultIcon, SettingsIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { useMediaQuery } from '@/lib/use-media-query'
 import {
@@ -86,6 +86,8 @@ export function GameScreen({
   const deleteLetter = useGameStore((state) => state.deleteLetter)
   const submit = useGameStore((state) => state.submit)
   const closeResult = useGameStore((state) => state.closeResult)
+  const openResult = useGameStore((state) => state.openResult)
+  const resultDismissed = useGameStore((state) => state.resultDismissed)
   const nextPuzzle = useGameStore((state) => state.nextPuzzle)
   const setMode = useGameStore((state) => state.setMode)
 
@@ -111,6 +113,25 @@ export function GameScreen({
   usePhysicalKeyboard(onKey, accepting && !resultOpen)
 
   const failed = status === 'failed'
+  /*
+   * Whether to show the end-of-attempt actions instead of the keyboard.
+   *
+   * Gated on the result having been *dismissed*, not merely on the attempt
+   * being over. The sheet opens on a settle timer a few hundred milliseconds
+   * after the status flips, so swapping the keyboard for these at the flip put
+   * a layout change directly under a drawer that was starting to slide up —
+   * two movements at once, which reads as a stutter. The drawer now opens over
+   * the keyboard exactly as it always did, and these appear only once it has
+   * gone.
+   *
+   * `loading` is included, but only once a row has been played: that is the
+   * board swap into the next puzzle, and without it the dead keyboard flashes
+   * back for the length of the animation. On the very first load there are no
+   * guesses and the keyboard is the right thing to be showing.
+   */
+  const attemptOver =
+    status === 'solved' || status === 'failed' || (status === 'loading' && guesses.length > 0)
+  const showEndActions = attemptOver && resultDismissed && !resultOpen
   const timed = timerMode !== 'off'
   const subtitle =
     clockLabel(clock, timerMode) ??
@@ -130,28 +151,42 @@ export function GameScreen({
        * Zero as the floor lets both sides settle equal and truncate instead.
        * The number is what has to be centred; the room name already ellipsises.
        */}
-      <header className="grid min-h-14 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center pt-1.5">
+      <header className="grid min-h-14 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 pt-1.5">
         <div>
           {onOpenRoom === undefined ? null : (
             <button
               type="button"
               onClick={onOpenRoom}
               className={cn(
-                'inline-flex h-9 max-w-[150px] items-center gap-1.5 rounded-md pr-2.5 pl-3',
+                'flex h-9 w-full max-w-[150px] items-center gap-1.5 rounded-md pr-2.5 pl-3',
                 'text-sm font-medium text-ink-2 transition-colors duration-(--duration-micro) active:bg-surface-2',
               )}
             >
-              <span className="truncate">{room?.name ?? 'Room'}</span>
-              <Icon icon={ForwardIcon} size={16} />
+              {/*
+               * `min-w-0` is inside `ScrollingText`. Without it the span's
+               * flex parent sized it to its content, `truncate` never engaged,
+               * and a long room name ran straight under the puzzle number
+               * instead of stopping at the 150px cap.
+               */}
+              <ScrollingText>{room?.name ?? 'Room'}</ScrollingText>
+              <Icon icon={ForwardIcon} size={16} className="flex-none" />
             </button>
           )}
         </div>
 
-        <div className="text-center leading-none">
+        {/*
+         * `max-w` on the middle column, because it is an `auto` track: it was
+         * sized by the longest thing in it, and "Puzzle 3 in Teeehehehehehe" is
+         * far longer than "No. 3". A long room name therefore widened the
+         * centre and squeezed both sides until the name button had nowhere to
+         * go. The number is what must stay centred; the sentence under it can
+         * ellipsise.
+         */}
+        <div className="mx-auto max-w-[52vw] text-center leading-none">
           <PuzzleNumber number={puzzle?.number ?? null} />
           <div
             className={cn(
-              'mt-[3px] text-[12px] text-muted',
+              'mt-[3px] truncate text-[12px] text-muted',
               timed && 'tabular',
               clock.urgent && 'text-accent',
             )}
@@ -214,7 +249,39 @@ export function GameScreen({
         </p>
       </main>
 
-      <Keyboard keyStates={keyStates} onKey={onKey} disabled={!accepting} />
+      {/*
+       * The attempt is over and the sheet has been dismissed.
+       *
+       * What used to be here was the keyboard, disabled — every key dead, no
+       * way to the next puzzle and no way back to the result. `openResult` was
+       * reachable only from the settle timer that opens the sheet in the first
+       * place, so dismissing the drawer once was a dead end and the only way on
+       * was a reload.
+       *
+       * The height is reserved to the keyboard's exactly (three rows, its two
+       * gaps and its padding) so the board does not jump when one replaces the
+       * other.
+       */}
+      {showEndActions ? (
+        <div className="flex min-h-[calc(var(--key-height)*3+28px)] flex-none items-center pb-2.5">
+          <div className="grid w-full grid-cols-2 gap-2.5">
+            <Button
+              variant="primary"
+              loading={status === 'loading'}
+              onClick={() => void nextPuzzle()}
+            >
+              <Icon icon={ForwardIcon} size={18} />
+              Next puzzle
+            </Button>
+            <Button onClick={openResult}>
+              <Icon icon={ResultIcon} size={18} />
+              View result
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Keyboard keyStates={keyStates} onKey={onKey} disabled={!accepting} />
+      )}
 
       <ResultSheet
         open={resultOpen}

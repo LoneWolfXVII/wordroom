@@ -72,7 +72,12 @@ export function CreateRoomScreen() {
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') submit()
+            if (event.key !== 'Enter') return
+            // As on the name screen: cancel Enter's default activation before
+            // moving anywhere, so the keypress cannot land on whatever is
+            // focused after the move.
+            event.preventDefault()
+            submit()
           }}
           placeholder="Friday crew"
           maxLength={ROOM_NAME_MAX}

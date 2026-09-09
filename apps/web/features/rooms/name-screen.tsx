@@ -207,7 +207,19 @@ export function NameScreen() {
             setFailure(null)
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && canContinue) setConfirming(true)
+            if (event.key !== 'Enter' || !canContinue) return
+            /*
+             * `preventDefault` is what stops the sheet blinking shut.
+             *
+             * Opening it moves focus to its first button — "Go back" — while
+             * this same keypress is still in flight. The browser then performs
+             * Enter's default activation against whatever is focused *now*, so
+             * a genuine, trusted click landed on "Go back" and closed the sheet
+             * in the same breath it opened. Cancelling the default action
+             * leaves the keypress with nothing left to activate.
+             */
+            event.preventDefault()
+            setConfirming(true)
           }}
           placeholder="Nischal"
           maxLength={PLAYER_NAME_MAX}

@@ -240,3 +240,94 @@ describe('configure across rooms', () => {
     expect(useGameStore.getState().current).toBe('sw')
   })
 })
+
+describe('the end of an attempt', () => {
+  it('reopens the result after it has been dismissed', async () => {
+    // Dismissing the drawer used to be a dead end: the keyboard stayed, every
+    // key dead, with no way to the next puzzle and no way back to the result,
+    // so the only escape was a reload. `openResult` was reachable only from the
+    // settle timer in `useResultSheet` — nothing the player could press.
+    await play(WORD)
+    expect(store().status).toBe('solved')
+
+    // What that timer does, once the reveal has settled.
+    store().openResult()
+    expect(store().resultOpen).toBe(true)
+
+    store().closeResult()
+    expect(store().resultOpen).toBe(false)
+
+    store().openResult()
+    expect(store().resultOpen).toBe(true)
+  })
+
+  it('does not mark the result dismissed until the player dismisses it', async () => {
+    /*
+     * This is the ordering the end-of-attempt actions depend on. The sheet
+     * opens on a settle timer some way after the status flips; if the actions
+     * appeared at the flip they would swap the keyboard out underneath a drawer
+     * that was already sliding up. `resultDismissed` is what keeps them until
+     * afterwards.
+     */
+    await play(WORD)
+    expect(store().status).toBe('solved')
+    // Attempt over, sheet not yet opened by the timer: nothing to show yet.
+    expect(store().resultDismissed).toBe(false)
+
+    store().openResult()
+    expect(store().resultDismissed).toBe(false)
+
+    store().closeResult()
+    expect(store().resultDismissed).toBe(true)
+
+    // Reopening from "View result" puts it back, so the actions hide again.
+    store().openResult()
+    expect(store().resultDismissed).toBe(false)
+  })
+
+  it('forgets the dismissal when the next puzzle arrives', async () => {
+    await play(WORD)
+    store().openResult()
+    store().closeResult()
+    expect(store().resultDismissed).toBe(true)
+
+    await store().nextPuzzle()
+    expect(store().resultDismissed).toBe(false)
+    expect(store().resultOpen).toBe(false)
+  })
+
+  it('will not open a result for a puzzle still in play', async () => {
+    // The actions replace the keyboard only once the attempt is over, and this
+    // is the guard that keeps them from appearing mid-game.
+    await play('slate')
+    expect(store().status).toBe('playing')
+    store().openResult()
+    expect(store().resultOpen).toBe(false)
+  })
+
+  it('prefetches the next puzzle as soon as the server says the attempt is over', async () => {
+    // Not when the reveal animation ends: measured against production that was
+    // ~950ms later, and it is time a player who taps straight through waits for.
+    const { clearPrefetched, prefetchedCount } = await import('./prefetch')
+    clearPrefetched()
+    await start()
+
+    for (const letter of WORD) store().typeLetter(letter)
+    await store().submit()
+
+    // `submit` has resolved but `finishReveal` has not run: the reveal is still
+    // animating, and the request must already be in flight.
+    expect(store().status).toBe('revealing')
+    expect(prefetchedCount()).toBe(1)
+  })
+
+  it('does not prefetch while the attempt is still going', async () => {
+    const { clearPrefetched, prefetchedCount } = await import('./prefetch')
+    clearPrefetched()
+    await start()
+
+    await play('slate')
+    expect(store().status).toBe('playing')
+    expect(prefetchedCount()).toBe(0)
+  })
+})

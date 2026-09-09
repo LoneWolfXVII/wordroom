@@ -41,6 +41,7 @@ export {
   Tick02Icon as TickIcon,
   Timer02Icon as TimerIcon,
   UserGroupIcon as PlayersIcon,
+  ViewIcon as ResultIcon,
 } from '@hugeicons/core-free-icons'
 
 /**

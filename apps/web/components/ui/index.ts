@@ -27,6 +27,7 @@ export { IconButton, type IconButtonProps } from './icon-button'
 export { Field, Help, type HelpProps, Input, Label } from './input'
 export { MiniGrid, type MiniGridProps, type MiniGridSize } from './mini-grid'
 export { RadioGroup, type RadioGroupProps, RadioOption, type RadioOptionProps } from './radio-group'
+export { ScrollingText } from './scrolling-text'
 export {
   SegmentedControl,
   type SegmentedControlProps,

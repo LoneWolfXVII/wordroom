@@ -100,6 +100,16 @@ export interface GameState {
   revealedWord: string | null
   points: number | null
   resultOpen: boolean
+  /**
+   * Whether the player has dismissed the result for this attempt.
+   *
+   * The end-of-attempt actions replace the keyboard, and they must not appear
+   * before the sheet has ever been up: the sheet opens on a settle timer some
+   * way after the status flips, so showing them at the flip swapped the
+   * keyboard out just as the drawer began sliding over it. One movement at a
+   * time — the drawer first, these only once it has gone.
+   */
+  resultDismissed: boolean
 
   startedAt: number | null
   guessStartedAt: number | null
@@ -169,6 +179,7 @@ const initialState: GameState = {
   revealedWord: null,
   points: null,
   resultOpen: false,
+  resultDismissed: false,
   startedAt: null,
   guessStartedAt: null,
   frozenMs: null,
@@ -190,6 +201,7 @@ function freshPuzzleState(now: number, settings: PlayerSettings) {
     revealedWord: null,
     points: null,
     resultOpen: false,
+    resultDismissed: false,
     startedAt: now,
     guessStartedAt: now,
     frozenMs: null,
@@ -361,6 +373,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
           throw new GameApiError('internal', 'The server scored nothing for that guess.')
         }
 
+        // The moment the attempt is known to be over — not when the reveal
+        // animation ends. That is ~950ms earlier, measured, and it is time a
+        // player who taps straight through would otherwise wait for.
+        if (result.finished) queueNextPuzzle(get)
+
         set((prev) => ({
           guesses: [...prev.guesses, { guess: current, marks: result.marks ?? [] }],
           current: '',
@@ -397,6 +414,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
           puzzleId: puzzle.id,
           elapsedMs: elapsed,
         })
+        // A timeout always ends the attempt, so the next puzzle is wanted for
+        // certain — the same reasoning as the finished branch in `submit`.
+        if (result.finished) queueNextPuzzle(get)
         set({ submitting: false, pendingResult: result, attemptId: result.attemptId })
         get().finishReveal()
         get().notify('Out of time')
@@ -418,7 +438,6 @@ export const useGameStore = create<GameStore>()((set, get) => {
       const elapsed = state.frozenMs ?? Date.now() - (state.startedAt ?? Date.now())
 
       if (result.solved) {
-        queueNextPuzzle(get)
         set({
           status: 'solved',
           bounceRow: state.guesses.length - 1,
@@ -431,7 +450,6 @@ export const useGameStore = create<GameStore>()((set, get) => {
       }
 
       if (result.finished) {
-        queueNextPuzzle(get)
         set({
           status: 'failed',
           revealedWord: result.word,
@@ -455,11 +473,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
     },
 
     openResult() {
-      if (get().status === 'solved' || get().status === 'failed') set({ resultOpen: true })
+      if (get().status === 'solved' || get().status === 'failed') {
+        set({ resultOpen: true, resultDismissed: false })
+      }
     },
 
     closeResult() {
-      set({ resultOpen: false })
+      set({ resultOpen: false, resultDismissed: true })
     },
 
     async nextPuzzle() {
@@ -500,7 +520,7 @@ async function swapBoard(
   set: (partial: Partial<GameStore>) => void,
   loading: Promise<void>,
 ): Promise<void> {
-  set({ resultOpen: false, boardPhase: 'out' })
+  set({ resultOpen: false, resultDismissed: false, boardPhase: 'out' })
   await Promise.all([loading, wait(prefersReducedMotion() ? 0 : STRUCT_MS)])
   set({ boardPhase: 'in' })
 }
