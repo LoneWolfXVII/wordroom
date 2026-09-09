@@ -1,18 +1,18 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { Screen } from '@/components/ui'
+import { ScreenFallback } from '@/components/ui'
 import { JoinRoomScreen } from '@/features/rooms'
 
 export const metadata: Metadata = { title: 'Join a room' }
 
 /**
  * `useSearchParams` opts a route into client rendering, and Next requires the
- * boundary to be explicit. The fallback is the empty screen frame, so the page
- * does not flash a different background before the code boxes land.
+ * boundary to be explicit. The fallback keeps the screen's shape rather than
+ * showing an empty frame, so nothing jumps when the real screen lands.
  */
 export default function Page() {
   return (
-    <Suspense fallback={<Screen />}>
+    <Suspense fallback={<ScreenFallback />}>
       <JoinRoomScreen />
     </Suspense>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import type { PlayerStats } from '@wordroom/shared'
-import { StatGrid, StatTile } from '@/components/ui'
+import { StatGrid, StatsSkeleton, StatTile, TileArt } from '@/components/ui'
 import { GuessDistribution } from './guess-distribution'
 
 export interface StatsPanelProps {
@@ -21,10 +21,25 @@ export interface StatsPanelProps {
  */
 export function StatsPanel({ stats, loading, error, highlightGuesses = null }: StatsPanelProps) {
   if (stats === null) {
+    if (error) {
+      return (
+        <div className="py-4 text-center">
+          <TileArt variant="lost" className="mx-auto mb-4 h-[76px] w-[150px]" />
+          <p className="text-[14px] leading-[1.45] font-medium text-ink">{error}</p>
+        </div>
+      )
+    }
+
+    if (loading) return <StatsSkeleton />
+
     return (
-      <p className="py-6 text-center text-[13px] text-muted leading-[1.4]">
-        {error ?? (loading ? 'Loading your stats…' : 'No stats yet.')}
-      </p>
+      <div className="py-4 text-center">
+        <TileArt variant="waiting" className="mx-auto mb-4 h-[76px] w-[150px]" />
+        <p className="text-[14px] leading-[1.45] font-medium text-ink">Nothing to count yet.</p>
+        <p className="mx-auto mt-1 max-w-[28ch] text-[13px] leading-[1.4] text-muted">
+          Play a puzzle and your streak starts here.
+        </p>
+      </div>
     )
   }
 

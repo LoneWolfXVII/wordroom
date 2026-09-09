@@ -2,9 +2,8 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Button, Icon, Screen, ScreenFooter, toast } from '@/components/ui'
+import { Button, Icon, Screen, ScreenFooter, TileArt, toast } from '@/components/ui'
 import { PlayersIcon } from '@/components/ui/icons'
-import { AuthFailureArt } from './auth-art'
 import { readAuthFailure } from './auth-error'
 import { useSession } from './session'
 import { getReturnPath, setReturnPath } from './storage'
@@ -50,7 +49,7 @@ export function AuthCallbackScreen() {
       <div className="m-auto max-w-[32ch] text-center">
         {failure ? (
           <>
-            <AuthFailureArt />
+            <TileArt variant="lost" />
             <h1 className="text-[19px] leading-tight font-semibold text-ink">{failure.title}</h1>
             <p className="mt-2 text-[14px] leading-[1.45] text-ink-2">{failure.detail}</p>
           </>

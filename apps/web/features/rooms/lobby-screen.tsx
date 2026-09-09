@@ -9,6 +9,7 @@ import {
   CodeDisplay,
   Icon,
   IconButton,
+  LobbySkeleton,
   Screen,
   ScreenFooter,
   ScreenLead,
@@ -44,7 +45,11 @@ export function LobbyScreen() {
   if (!seat) {
     return (
       <Screen>
-        <div className="m-auto text-[15px] text-muted">Loading your room…</div>
+        {/* Shaped like the lobby that is coming, so nothing jumps when it
+            lands. It used to be the sentence "Loading your room…". */}
+        <div className="m-auto w-full">
+          <LobbySkeleton />
+        </div>
       </Screen>
     )
   }

@@ -2,6 +2,7 @@
 
 import { AnimatePresence } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
+import { BoardSkeleton, TileArt } from '@/components/ui'
 import { LeaderboardRow } from './leaderboard-row'
 import type { BoardEntry } from './types'
 
@@ -41,10 +42,19 @@ export function LeaderboardList({ entries, loading }: LeaderboardListProps) {
   }, [entries])
 
   if (entries.length === 0) {
+    // Loading and empty are different states and used to render the same
+    // sentence. A skeleton says "rows are coming" without claiming there are
+    // none; the mark says there are none, and why that is not a problem.
+    if (loading) return <BoardSkeleton />
+
     return (
-      <p className="py-6 text-center text-[13px] text-muted leading-[1.4]">
-        {loading ? 'Loading the board…' : 'No scores yet. Finish a puzzle to get on the board.'}
-      </p>
+      <div className="py-4 text-center">
+        <TileArt variant="absent" className="mx-auto mb-4 h-[76px] w-[150px]" />
+        <p className="text-[14px] leading-[1.45] font-medium text-ink">No scores yet.</p>
+        <p className="mx-auto mt-1 max-w-[28ch] text-[13px] leading-[1.4] text-muted">
+          Finish a puzzle and you will be the first on the board.
+        </p>
+      </div>
     )
   }
 
