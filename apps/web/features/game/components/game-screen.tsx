@@ -148,7 +148,7 @@ export function GameScreen({
         </div>
 
         <div className="text-center leading-none">
-          <PuzzleNumber number={puzzle?.number ?? 1} />
+          <PuzzleNumber number={puzzle?.number ?? null} />
           <div
             className={cn(
               'mt-[3px] text-[12px] text-muted',
