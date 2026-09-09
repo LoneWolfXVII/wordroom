@@ -5,7 +5,7 @@ import type { Room } from '@wordroom/shared'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Button, Help, Icon, Sheet, toast } from '@/components/ui'
-import { ForwardIcon, ShareIcon } from '@/components/ui/icons'
+import { CopyIcon, ForwardIcon, ShareIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { leaveRoom } from './api'
 import { resolveRoomsError } from './errors'
@@ -118,8 +118,8 @@ export function RoomSheet({
         description={`${list.length} of ${room.maxPlayers} players`}
         action={
           <Button size="sm" onClick={copyCode} aria-label={`Copy room code ${room.code}`}>
-            Code
-            <b className="ml-1 font-semibold tracking-[0.1em] tabular">{room.code}</b>
+            <Icon icon={CopyIcon} size={18} />
+            <b className="font-semibold tracking-[0.1em] tabular">{room.code}</b>
           </Button>
         }
       >

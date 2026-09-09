@@ -1,6 +1,6 @@
 {
   "name": "@wordroom/web",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev:prod": "next dev -p 3900 --env-file ../../apps/web/.env.production.local"
+    "dev:prod": "sh -c 'set -a; . ./.env.production.local; set +a; exec next dev -p 3900'"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "4.3.2",

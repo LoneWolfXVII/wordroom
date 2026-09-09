@@ -23,6 +23,7 @@ export {
   Copy01Icon as CopyIcon,
   GoogleIcon,
   HelpCircleIcon as RulesIcon,
+  Home01Icon as HomeIcon,
   Link01Icon as LinkIcon,
   Loading03Icon as SpinnerIcon,
   LockIcon,
@@ -30,7 +31,9 @@ export {
   // leaving one are the same door, walked in opposite directions.
   Login01Icon as JoinIcon,
   Logout01Icon as LeaveIcon,
+  MailSend01Icon as SendLinkIcon,
   MinusSignIcon as MinusIcon,
+  PlayIcon as StartPlayingIcon,
   PlusSignIcon as PlusIcon,
   Share08Icon as ShareIcon,
   SlidersHorizontalIcon as SettingsIcon,

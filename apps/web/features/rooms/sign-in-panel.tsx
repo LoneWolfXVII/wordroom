@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Help, Icon, Input, toast } from '@/components/ui'
-import { GoogleIcon, LinkIcon } from '@/components/ui/icons'
+import { GoogleIcon, LinkIcon, SendLinkIcon } from '@/components/ui/icons'
 import { resolveRoomsError } from './errors'
 import { linkEmail, linkGoogle, looksLikeEmail } from './identity'
 
@@ -140,6 +140,7 @@ export function SignInPanel({
             Back
           </Button>
           <Button size="sm" variant="primary" className="w-full" loading={busy} onClick={sendLink}>
+            <Icon icon={SendLinkIcon} size={18} />
             Send link
           </Button>
         </div>

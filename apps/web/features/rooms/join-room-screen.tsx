@@ -7,6 +7,7 @@ import {
   Button,
   CodeBoxes,
   Help,
+  Icon,
   IconButton,
   Screen,
   ScreenFooter,
@@ -14,7 +15,7 @@ import {
   ScreenTitle,
   ScreenTop,
 } from '@/components/ui'
-import { BackIcon } from '@/components/ui/icons'
+import { BackIcon, JoinIcon } from '@/components/ui/icons'
 import { codeFromShareInput, isCompleteCode, normaliseCode } from './code'
 import { ApiError, resolveRoomsError } from './errors'
 import { setPendingSeat } from './storage'
@@ -112,6 +113,7 @@ export function JoinRoomScreen() {
 
       <ScreenFooter>
         <Button variant="primary" disabled={!ready} onClick={submit}>
+          <Icon icon={JoinIcon} size={18} />
           Join room
         </Button>
       </ScreenFooter>

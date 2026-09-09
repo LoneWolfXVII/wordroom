@@ -17,7 +17,7 @@ import {
   ScreenTopSpacer,
   toast,
 } from '@/components/ui'
-import { CloseIcon, CopyIcon, ShareIcon } from '@/components/ui/icons'
+import { CloseIcon, CopyIcon, ShareIcon, StartPlayingIcon } from '@/components/ui/icons'
 import { MemberList } from './member-list'
 import { GAME_PATH } from './routes'
 import { copyText, shareRoom } from './share'
@@ -99,6 +99,7 @@ export function LobbyScreen() {
 
       <ScreenFooter>
         <Button variant="primary" onClick={() => router.push(GAME_PATH)}>
+          <Icon icon={StartPlayingIcon} size={18} />
           Start playing
         </Button>
       </ScreenFooter>
