@@ -26,6 +26,9 @@ export {
   Link01Icon as LinkIcon,
   Loading03Icon as SpinnerIcon,
   LockIcon,
+  // The mirror of `LeaveIcon` below, which is `Logout01Icon`: joining a room and
+  // leaving one are the same door, walked in opposite directions.
+  Login01Icon as JoinIcon,
   Logout01Icon as LeaveIcon,
   MinusSignIcon as MinusIcon,
   PlusSignIcon as PlusIcon,

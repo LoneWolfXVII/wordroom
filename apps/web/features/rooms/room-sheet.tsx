@@ -11,7 +11,7 @@ import { leaveRoom } from './api'
 import { resolveRoomsError } from './errors'
 import { MemberList } from './member-list'
 import { copyText, shareRoom } from './share'
-import { setActiveRoomId } from './storage'
+import { setActiveRoom } from './storage'
 import { useActiveSeat, useMembers, usePuzzleStatuses } from './use-rooms'
 
 /**
@@ -79,7 +79,7 @@ export function RoomSheet({
    * removed from and come back 403.
    */
   const afterLeaving = async () => {
-    setActiveRoomId(null)
+    setActiveRoom(null)
     setConfirming(false)
     router.replace('/')
     await queryClient.invalidateQueries({ queryKey: ['rooms'] })
