@@ -91,6 +91,16 @@ export class GameApiError extends Error {
 export interface EdgeApiConfig {
   /** Base URL of the functions host, e.g. `https://<ref>.supabase.co/functions/v1`. */
   functionsUrl: string
+  /**
+   * Base URL of PostgREST, e.g. `https://<ref>.supabase.co/rest/v1`.
+   *
+   * A guess goes here rather than to an Edge Function, and the difference is
+   * most of the wait. Measured from India against the deployed project: a POST
+   * to a function that does not exist — nothing invoked, pure platform routing —
+   * costs 528-676ms, while a PostgREST call doing real work costs 175-195ms. The
+   * function was paying that toll and then making two round trips of its own.
+   */
+  restUrl: string
   /** The project's publishable anon key, sent as `apikey`. */
   anonKey: string
   /** Resolves the caller's Supabase access token. Workstream 3 owns where it comes from. */
@@ -205,15 +215,68 @@ export function createEdgeGameApi(config: EdgeApiConfig): GameApi {
     return body as Record<string, unknown>
   }
 
+  /**
+   * One round trip, straight to Postgres.
+   *
+   * `submit_guess` answers 200 either way and puts a rejection in the body, so
+   * the envelope is checked here rather than the status: a raised exception
+   * would lose the domain code the board needs to tell "not a word" from
+   * "already over", and would roll back the rate-limit hit with it.
+   */
+  async function rpc(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const token = await config.getAccessToken()
+    if (token === null) {
+      throw new GameApiError('unauthorized', 'Sign-in expired. Reload to keep playing.', 401)
+    }
+
+    let response: Response
+    try {
+      response = await fetch(`${config.restUrl.replace(/\/$/, '')}/rpc/submit_guess`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          apikey: config.anonKey,
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+    } catch {
+      throw new GameApiError('offline', 'No connection. Reconnect to play.')
+    }
+
+    const body: unknown = await response.json().catch(() => null)
+    if (!response.ok) throw toError(response.status, body)
+    if (typeof body !== 'object' || body === null) {
+      throw new GameApiError('internal', 'The server sent an empty response.', response.status)
+    }
+    const record = body as Record<string, unknown>
+    if (record.error !== undefined) throw toError(200, record)
+    return record
+  }
+
   return {
     async getPuzzle(input) {
       return readPuzzle(await call('get-puzzle', input))
     },
     async submitGuess(input) {
-      return readGuessResult(await call('submit-guess', input))
+      return readGuessResult(
+        await rpc({
+          p_puzzle_id: input.puzzleId,
+          p_guess: input.guess,
+          p_elapsed_ms: input.elapsedMs ?? null,
+          p_timed_out: false,
+        }),
+      )
     },
     async submitTimeout(input) {
-      return readGuessResult(await call('submit-guess', { ...input, timedOut: true }))
+      return readGuessResult(
+        await rpc({
+          p_puzzle_id: input.puzzleId,
+          p_guess: null,
+          p_elapsed_ms: input.elapsedMs ?? null,
+          p_timed_out: true,
+        }),
+      )
     },
   }
 }

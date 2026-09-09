@@ -93,6 +93,7 @@ export function GameRoute() {
       room: { id: seat.room.id, name: seat.room.name, code: seat.room.code },
       api: createEdgeGameApi({
         functionsUrl: `${env.url.replace(/\/$/, '')}/functions/v1`,
+        restUrl: `${env.url.replace(/\/$/, '')}/rest/v1`,
         anonKey: env.anonKey,
         getAccessToken: async () => {
           const { data } = await supabase.auth.getSession()
