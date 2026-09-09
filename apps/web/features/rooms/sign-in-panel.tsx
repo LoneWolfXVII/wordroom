@@ -122,7 +122,9 @@ export function SignInPanel({
             setProblem(null)
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') void sendLink()
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            void sendLink()
           }}
           className="h-11 text-[15px]"
         />
