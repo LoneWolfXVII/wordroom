@@ -7,7 +7,8 @@ import { STRUCT_MS } from '../motion'
 const EASE_OUT = [0.2, 0.8, 0.2, 1] as const
 
 export interface PuzzleNumberProps {
-  number: number
+  /** Null until the puzzle is known. Renders nothing rather than a guess. */
+  number: number | null
 }
 
 /**
@@ -20,6 +21,13 @@ export interface PuzzleNumberProps {
  * share the slot instead of sitting side by side.
  *
  * "No." does not move. Only the number does.
+ *
+ * A null number renders the slot empty. It used to default to 1, which meant a
+ * player resuming puzzle No. 3 read "No. 1" for the second and a bit it took to
+ * find out otherwise, and then watched it roll — the odometer animating a
+ * change that never happened, from a number that was never true. An empty slot
+ * is honest and does not animate, and the subtitle already says the puzzle is
+ * on its way.
  */
 export function PuzzleNumber({ number }: PuzzleNumberProps) {
   const reduced = useReducedMotion() ?? false
@@ -29,16 +37,18 @@ export function PuzzleNumber({ number }: PuzzleNumberProps) {
       <div className="inline-flex h-[26px] items-start overflow-hidden align-bottom text-[length:var(--number-size)] font-semibold tracking-[-0.02em]">
         <span>No.&nbsp;</span>
         <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={number}
-            className="tabular"
-            initial={{ y: '110%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '-110%' }}
-            transition={{ duration: reduced ? 0 : STRUCT_MS / 1000, ease: EASE_OUT }}
-          >
-            {number}
-          </motion.span>
+          {number === null ? null : (
+            <motion.span
+              key={number}
+              className="tabular"
+              initial={{ y: '110%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '-110%' }}
+              transition={{ duration: reduced ? 0 : STRUCT_MS / 1000, ease: EASE_OUT }}
+            >
+              {number}
+            </motion.span>
+          )}
         </AnimatePresence>
       </div>
     </div>

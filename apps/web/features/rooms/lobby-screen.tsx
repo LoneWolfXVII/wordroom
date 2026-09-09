@@ -33,7 +33,7 @@ import { useActiveSeat, useMembers } from './use-rooms'
 export function LobbyScreen() {
   const router = useRouter()
   const { seat, isLoading, hasAnySeat } = useActiveSeat()
-  const members = useMembers(seat?.room.id ?? null)
+  const members = useMembers(seat?.room.id ?? null, seat?.player.id ?? null)
 
   // A direct visit with no seat — a shared URL, or cleared storage. Nothing to
   // show, so start them at the beginning rather than on an empty room.

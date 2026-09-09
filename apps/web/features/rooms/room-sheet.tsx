@@ -47,7 +47,7 @@ export function RoomSheet({
   const router = useRouter()
   const queryClient = useQueryClient()
   const { seat } = useActiveSeat()
-  const members = useMembers(seat?.room.id ?? null)
+  const members = useMembers(seat?.room.id ?? null, seat?.player.id ?? null)
   const statuses = usePuzzleStatuses(puzzleId)
 
   const [confirming, setConfirming] = useState(false)

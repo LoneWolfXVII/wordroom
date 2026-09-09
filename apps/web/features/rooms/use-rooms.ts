@@ -112,7 +112,7 @@ export function useRoom(roomId: string | null) {
  * below subscribes to nothing of its own. Three listeners on one socket, rather
  * than a second subscription per sheet.
  */
-export function useMembers(roomId: string | null) {
+export function useMembers(roomId: string | null, myPlayerId?: string | null) {
   const { status } = useSession()
   const queryClient = useQueryClient()
 
@@ -159,8 +159,20 @@ export function useMembers(roomId: string | null) {
        * column to filter on, so this is the same deal: a signal to refetch, never
        * data to merge. Nothing off this socket is read — see `puzzle-status.ts`
        * for why a payload from `attempts` is not something to trust.
+       *
+       * Except for one field, and only to decide whether to ask at all. Your own
+       * guess writes to `attempts`, so this fired on every guess you played and
+       * refetched a row you had just been handed the result of — measured
+       * against production at 440ms to 915ms, sometimes longer than the guess
+       * itself. The payload's `player_id` is still not read as data; it is read
+       * as "this is my own write, I already know".
+       *
+       * A dropped event here costs nothing: the query refetches on mount, on
+       * focus, and on every other player's write.
        */
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attempts' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attempts' }, (payload) => {
+        const record = (payload.new ?? payload.old) as { player_id?: unknown } | null
+        if (myPlayerId && record?.player_id === myPlayerId) return
         void queryClient.invalidateQueries({ queryKey: roomKeys.puzzleStatuses() })
       })
       .subscribe()
@@ -168,7 +180,7 @@ export function useMembers(roomId: string | null) {
     return () => {
       void client.removeChannel(channel)
     }
-  }, [roomId, status, queryClient])
+  }, [roomId, status, queryClient, myPlayerId])
 
   return query
 }
