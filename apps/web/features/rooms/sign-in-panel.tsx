@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Help, Icon, Input, toast } from '@/components/ui'
 import { GoogleIcon, LinkIcon, SendLinkIcon } from '@/components/ui/icons'
+import { cn } from '@/lib/cn'
 import { ApiError, resolveRoomsError } from './errors'
 import {
   linkEmail,
@@ -203,8 +204,10 @@ export function SignInPanel({
           {problem}
         </Help>
       ) : null}
-      <div className="grid grid-cols-[auto_1fr] gap-2.5">
-        {secondaryAction ?? <span />}
+      {/* No empty first column without a secondary action: its gap alone
+          indented the button off the sheet's edge. */}
+      <div className={cn('grid gap-2.5', secondaryAction && 'grid-cols-[auto_1fr]')}>
+        {secondaryAction}
         <Button size="sm" variant="primary" className="w-full" loading={busy} onClick={google}>
           <Icon icon={GoogleIcon} size={18} />
           Continue with Google
