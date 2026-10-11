@@ -5,7 +5,7 @@ import type { Room } from '@wordroom/shared'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Button, Help, Icon, Sheet, toast } from '@/components/ui'
-import { CopyIcon, ForwardIcon, ShareIcon } from '@/components/ui/icons'
+import { CopyIcon, ForwardIcon, HomeIcon, ShareIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { leaveRoom } from './api'
 import { resolveRoomsError } from './errors'
@@ -139,6 +139,18 @@ export function RoomSheet({
             Room lobby
           </Button>
         </div>
+
+        {/* The game has no other way home, and home is where the other rooms are. */}
+        <Button
+          className="mt-2.5"
+          onClick={() => {
+            onOpenChange(false)
+            router.push('/')
+          }}
+        >
+          <Icon icon={HomeIcon} size={18} />
+          All rooms
+        </Button>
 
         <Button
           variant="danger"

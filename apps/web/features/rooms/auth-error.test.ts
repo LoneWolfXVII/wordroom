@@ -17,6 +17,7 @@ describe('readAuthFailure', () => {
     const failure = read('error=invalid_request&error_code=email_exists')
     expect(failure?.title).toBe('That account is already in use.')
     expect(failure?.retryable).toBe(false)
+    expect(failure?.canSwitch).toBe(true)
   })
 
   it('falls back to error when there is no error_code', () => {

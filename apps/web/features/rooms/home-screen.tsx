@@ -3,14 +3,16 @@
 import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Button, Icon, Screen, ScreenFooter } from '@/components/ui'
-import { ForwardIcon, JoinIcon, PlusIcon, RulesIcon } from '@/components/ui/icons'
+import { Button, Icon, Screen, ScreenFooter, Sheet } from '@/components/ui'
+import { ForwardIcon, JoinIcon, LockIcon, PlusIcon, RulesIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { DemoTiles } from './demo-tiles'
 import { type ResumeRoom, resolveResumeRoom, roomMark } from './resume-room'
 import { RulesSheet } from './rules-sheet'
-import { type ActiveRoom, getActiveRoom } from './storage'
-import { useActiveSeat } from './use-rooms'
+import { useSession } from './session'
+import { SignInPanel } from './sign-in-panel'
+import { type ActiveRoom, getActiveRoom, setActiveRoom } from './storage'
+import { useActiveSeat, useMyRooms } from './use-rooms'
 
 /**
  * The home screen.
@@ -21,7 +23,10 @@ import { useActiveSeat } from './use-rooms'
  */
 export function HomeScreen() {
   const [rulesOpen, setRulesOpen] = useState(false)
-  const { seat, isLoading } = useActiveSeat()
+  const [signInOpen, setSignInOpen] = useState(false)
+  const { seat, isLoading, hasAnySeat } = useActiveSeat()
+  const rooms = useMyRooms()
+  const { status, isAnonymous } = useSession()
 
   /*
    * The remembered room, read on mount rather than during render: this route is
@@ -41,6 +46,11 @@ export function HomeScreen() {
   }, [])
 
   const resume = resolveResumeRoom({ seat, hint, isLoading })
+  const others = rooms.filter((room) => room.id !== resume?.id)
+
+  // Not while seats are still loading: whether this links or signs in depends
+  // on whether there are any.
+  const showSignIn = status === 'ready' && isAnonymous && !isLoading
 
   return (
     <Screen>
@@ -59,6 +69,21 @@ export function HomeScreen() {
          * anywhere else would make the common case the slow one.
          */}
         {resume ? <ResumeCard room={resume} /> : null}
+
+        {/*
+         * Every other room this account sits in. Quieter than the resume card,
+         * and capped so a long list scrolls inside itself rather than pushing
+         * the hero off a 375x667 screen.
+         */}
+        {others.length > 0 ? (
+          <ul className="mb-1.5 grid max-h-[118px] min-w-0 gap-1.5 overflow-y-auto">
+            {others.map((room) => (
+              <li key={room.id} className="min-w-0">
+                <OtherRoomLink room={room} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
         {/*
          * Create and join share a row. They are the two ways into a room and
@@ -82,13 +107,49 @@ export function HomeScreen() {
             </Link>
           </Button>
         </div>
-        <Button variant="ghost" onClick={() => setRulesOpen(true)}>
-          <Icon icon={RulesIcon} size={18} />
-          How to play
-        </Button>
+        {/*
+         * Sign in sits beside the rules for a guest, so a player on a new phone
+         * is never locked out of their rooms. It is never the first thing asked
+         * of anyone: a new player can ignore it, and the one prompt stays where
+         * it was, after their first result.
+         */}
+        <div className={cn('grid gap-2.5', showSignIn && 'grid-cols-2')}>
+          <Button variant="ghost" onClick={() => setRulesOpen(true)}>
+            <Icon icon={RulesIcon} size={18} />
+            How to play
+          </Button>
+          {showSignIn ? (
+            <Button variant="ghost" onClick={() => setSignInOpen(true)}>
+              <Icon icon={LockIcon} size={18} />
+              Sign in
+            </Button>
+          ) : null}
+        </div>
       </ScreenFooter>
 
       <RulesSheet open={rulesOpen} onOpenChange={setRulesOpen} />
+
+      {/*
+       * A guest holding a seat *links*, so that seat comes with them. One holding
+       * none *signs in*, which is the only way to reach an account made on
+       * another device. See identity.ts.
+       */}
+      <Sheet
+        open={signInOpen}
+        onOpenChange={setSignInOpen}
+        title={hasAnySeat ? 'Keep your rooms' : 'Sign in'}
+        description={
+          hasAnySeat
+            ? 'Sign in so your rooms and scores follow you to any device.'
+            : 'Already played on another device? Sign in to get your rooms back.'
+        }
+      >
+        <SignInPanel
+          mode={hasAnySeat ? 'link' : 'sign-in'}
+          returnPath="/"
+          onEmailSent={() => setSignInOpen(false)}
+        />
+      </Sheet>
     </Screen>
   )
 }
@@ -168,5 +229,34 @@ function ResumeCard({ room }: { room: ResumeRoom }) {
         <Icon icon={ForwardIcon} size={18} className="text-on-accent/80" />
       </Link>
     </motion.div>
+  )
+}
+
+/**
+ * A room other than the one the resume card opens. Tapping it makes it the
+ * active room first, so the lobby and the game open on it — they both pick the
+ * stored room among the account's seats.
+ */
+function OtherRoomLink({ room }: { room: { id: string; name: string } }) {
+  return (
+    <Link
+      href="/lobby"
+      onClick={() => setActiveRoom({ id: room.id, name: room.name })}
+      aria-label={`Open ${room.name}`}
+      className={cn(
+        'flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-2',
+        '[transition:transform_var(--duration-micro),background-color_var(--duration-micro)]',
+        'active:scale-[0.98] active:bg-surface-2',
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="grid size-8 flex-none place-items-center rounded-sm bg-surface-2 text-[15px] font-semibold"
+      >
+        {roomMark(room.name)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{room.name}</span>
+      <Icon icon={ForwardIcon} size={18} className="text-ink-2" />
+    </Link>
   )
 }

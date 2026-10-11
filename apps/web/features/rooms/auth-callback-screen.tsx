@@ -3,8 +3,10 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Button, Icon, Screen, ScreenFooter, TileArt, toast } from '@/components/ui'
-import { PlayersIcon } from '@/components/ui/icons'
+import { GoogleIcon, PlayersIcon } from '@/components/ui/icons'
 import { readAuthFailure } from './auth-error'
+import { resolveRoomsError } from './errors'
+import { signInWithGoogle } from './identity'
 import { useSession } from './session'
 import { getReturnPath, setReturnPath } from './storage'
 
@@ -24,6 +26,8 @@ export function AuthCallbackScreen() {
   const params = useSearchParams()
   const { status, isAnonymous } = useSession()
   const [slow, setSlow] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [switchProblem, setSwitchProblem] = useState<string | null>(null)
 
   // The provider reports a refusal in the query string rather than by failing
   // the redirect, and each refusal needs a different sentence — see auth-error.
@@ -52,6 +56,9 @@ export function AuthCallbackScreen() {
             <TileArt variant="lost" />
             <h1 className="text-[19px] leading-tight font-semibold text-ink">{failure.title}</h1>
             <p className="mt-2 text-[14px] leading-[1.45] text-ink-2">{failure.detail}</p>
+            {switchProblem ? (
+              <p className="mt-2 text-[14px] leading-[1.45] text-danger">{switchProblem}</p>
+            ) : null}
           </>
         ) : (
           <p className="text-[15px] text-ink-2">Signing you in…</p>
@@ -60,7 +67,31 @@ export function AuthCallbackScreen() {
 
       {failure || slow ? (
         <ScreenFooter>
-          <Button variant="primary" onClick={() => router.replace(getReturnPath() ?? '/lobby')}>
+          {failure?.canSwitch ? (
+            // Home, not the stored return path: that pointed into the guest's
+            // room, which the account being signed in to does not hold.
+            <Button
+              variant="primary"
+              loading={switching}
+              onClick={async () => {
+                setSwitching(true)
+                setSwitchProblem(null)
+                try {
+                  await signInWithGoogle('/')
+                } catch (error) {
+                  setSwitchProblem(resolveRoomsError(error).message)
+                  setSwitching(false)
+                }
+              }}
+            >
+              <Icon icon={GoogleIcon} size={18} />
+              Sign in to that account
+            </Button>
+          ) : null}
+          <Button
+            variant={failure?.canSwitch ? 'default' : 'primary'}
+            onClick={() => router.replace(getReturnPath() ?? '/lobby')}
+          >
             <Icon icon={PlayersIcon} size={18} />
             Back to your room
           </Button>
