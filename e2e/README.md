@@ -111,15 +111,9 @@ alternative:
 
 ## CI
 
-`.github/workflows/ci.yml` runs the suite on pull requests only — every run
-creates real rooms, so a second run on the merge commit would double the litter
-for no extra signal. It skips cleanly when the secrets are absent:
-
-| Secret | Required | For |
-| --- | --- | --- |
-| `E2E_SUPABASE_URL` | yes | the project URL |
-| `E2E_SUPABASE_ANON_KEY` | yes | the anon / publishable key |
-| `E2E_SUPABASE_SERVICE_ROLE_KEY` | no | `cleanup.mjs` after the run |
+`.github/workflows/ci.yml` runs the suite on pull requests, against a local
+Supabase stack started on the runner (`supabase start` plus
+`serve-functions.sh`). No secrets, no hosted project, and nothing left behind.
 
 CI serves a production build rather than `next dev`: a dev server compiles a
 route on its first request, and the first test to reach a screen would pay tens
