@@ -182,54 +182,19 @@ jobs:
   # ---------------------------------------------------------------------------
   # Playwright — workstream 6.
   #
-  # The suite drives a real Supabase project: anonymous sign-ins, five Edge
-  # Functions, Postgres and realtime. There is no fixture backend to point it
-  # at, so it needs credentials, and credentials only ever come from secrets.
-  # Without them the job skips and the repo stays green, rather than failing on
-  # every fork and on every pull request opened before the secrets exist.
-  #
-  # Add these two repository secrets to switch it on:
-  #   E2E_SUPABASE_URL       the project URL, https://<ref>.supabase.co
-  #   E2E_SUPABASE_ANON_KEY  the anon / publishable key
-  #
-  # And optionally, to let CI tidy up after itself:
-  #   E2E_SUPABASE_SERVICE_ROLE_KEY   read only by e2e/scripts/cleanup.mjs
-  #
-  # The service-role key is never written to a file and never reaches apps/web.
+  # The suite drives a real Supabase stack: anonymous sign-ins, the Edge
+  # Functions, Postgres and realtime. It runs against a local one started on the
+  # runner, never a hosted project. It used to read a hosted project from
+  # secrets; when that project was deleted every test failed on DNS in 200ms,
+  # and while it existed every run left rooms behind that nothing could delete.
+  # A local stack needs no secrets, has no anonymous sign-in cap, and is thrown
+  # away with the runner.
   # ---------------------------------------------------------------------------
-  e2e-secrets:
-    name: e2e credentials
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    outputs:
-      configured: ${{ steps.check.outputs.configured }}
-    steps:
-      # A job-level `if:` cannot read the secrets context, so the question is
-      # answered in a step and consumed as an output. Only the boolean escapes.
-      - id: check
-        env:
-          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
-        run: |
-          if [ -n "$E2E_SUPABASE_URL" ] && [ -n "$E2E_SUPABASE_ANON_KEY" ]; then
-            echo 'configured=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'configured=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::E2E_SUPABASE_URL / E2E_SUPABASE_ANON_KEY are not set - skipping Playwright.'
-          fi
-
   e2e:
     name: playwright e2e
-    needs: e2e-secrets
-    # Pull requests only. Every run creates real rooms in a real project, and
-    # nothing can delete them from the client, so running it again on the merge
-    # commit would double the litter for no extra signal.
-    if: github.event_name == 'pull_request' && needs.e2e-secrets.outputs.configured == 'true'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -243,23 +208,49 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # `next build` inlines NEXT_PUBLIC_* at build time, so the app needs them
-      # on disk. Written from secrets, never committed — .gitignore covers .env.*
-      - name: Write app env
+      # Puzzles are drawn from `word_bank`; an unseeded stack has no words.
+      - name: Generate the seeds
         run: |
-          {
-            printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$NEXT_PUBLIC_SUPABASE_URL"
-            printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
-          } > apps/web/.env.local
+          node supabase/scripts/seed-word-bank.mjs
+          node supabase/scripts/seed-guess-bank.mjs
 
-      # `--with-deps` runs `apt-get update` across every source on the runner,
-      # and the image ships Google's Chrome repo. On 9 Sep that repo served a
-      # Release file newer than its own Packages.gz, so apt failed the hash
-      # check, `playwright install` exited 100, and this job reported a
-      # Playwright failure having never built or run a test. We install
-      # Chromium from Playwright's own download, not from Google's apt repo, so
-      # the source is pure overhead here — dropping it removes a third party
-      # from the critical path of every pull request.
+      # Pinned for the same reason as the sql parity job.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+
+      # Auth, PostgREST, realtime and the edge runtime are what the app touches.
+      - name: Start Supabase
+        run: >
+          supabase start
+          -x storage-api,imgproxy,mailpit,studio,logflare,vector,supavisor,postgres-meta,pooler
+
+      # Backgrounded so it outlives this step; the runner reaps it at the end.
+      # The script vendors @wordroom/shared, which the runtime cannot see.
+      - name: Serve the Edge Functions
+        run: |
+          nohup ./supabase/scripts/serve-functions.sh > functions.log 2>&1 &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS http://127.0.0.1:54321/functions/v1/create-room || true)
+            if [ "$code" != "000" ] && [ "$code" != "502" ] && [ "$code" != "503" ]; then echo "functions up ($code)"; exit 0; fi
+            sleep 2
+          done
+          cat functions.log
+          exit 1
+
+      # `next build` inlines NEXT_PUBLIC_* at build time, so the app needs them
+      # on disk; the suite's own API calls read the same two from the env.
+      - name: Point the app at the local stack
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+          {
+            printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$API_URL"
+            printf 'NEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$ANON_KEY"
+          } | tee apps/web/.env.local >> "$GITHUB_ENV"
+
+      # Google's Chrome apt repo once failed its own hash check and took
+      # `playwright install --with-deps` down with it. Chromium comes from
+      # Playwright's download, so that source is pure overhead here.
       - name: Drop package sources this job does not need
         run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
 
@@ -281,17 +272,3 @@ jobs:
           name: playwright-report
           path: e2e/.report
           retention-days: 7
-
-      # Best effort, and never the reason a pull request goes red. Rooms younger
-      # than two hours are left alone so a concurrent run is not disturbed.
-      - name: Clean up old test rooms
-        if: always()
-        continue-on-error: true
-        env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo '::notice::E2E_SUPABASE_SERVICE_ROLE_KEY not set - test rooms are left in place.'
-            exit 0
-          fi
-          node e2e/scripts/cleanup.mjs --delete

@@ -10,7 +10,7 @@ import {
 
 describe('normaliseName', () => {
   it('trims the ends', () => {
-    expect(normaliseName('  Nischal  ')).toBe('Nischal')
+    expect(normaliseName('  Sam  ')).toBe('Sam')
   })
 
   it('collapses internal runs of whitespace', () => {
@@ -21,7 +21,7 @@ describe('normaliseName', () => {
   })
 
   it('leaves case alone — the uniqueness index lowercases, the display does not', () => {
-    expect(normaliseName('NiScHaL')).toBe('NiScHaL')
+    expect(normaliseName('sAm')).toBe('sAm')
   })
 
   it('reduces a whitespace-only name to empty', () => {
@@ -31,7 +31,7 @@ describe('normaliseName', () => {
 
 describe('checkPlayerName', () => {
   it('accepts an ordinary name and returns what to send', () => {
-    expect(checkPlayerName('  Nischal ')).toEqual({ value: 'Nischal', problem: null })
+    expect(checkPlayerName('  Sam ')).toEqual({ value: 'Sam', problem: null })
   })
 
   it('rejects empty and whitespace-only', () => {

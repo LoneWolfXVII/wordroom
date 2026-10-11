@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Player, Room } from '@wordroom/shared'
 import { useEffect, useMemo } from 'react'
 import { getBrowserClient } from '@/lib/supabase'
@@ -101,6 +101,26 @@ export function useActiveSeat(): {
     isLoading: seats.isPending || seats.isFetching || (player !== null && room.isPending),
     hasAnySeat: (seats.data ?? []).length > 0,
   }
+}
+
+/**
+ * Every room this account sits in, newest seat first, as each one lands.
+ *
+ * One `useRoom` query per seat rather than a new list query: the keys are
+ * shared, so the room the game already loaded is not fetched twice. A player
+ * holds a handful of seats at most.
+ */
+export function useMyRooms(): Room[] {
+  const { status } = useSession()
+  const seats = useMySeats()
+  const rooms = useQueries({
+    queries: (seats.data ?? []).map((seat) => ({
+      queryKey: roomKeys.room(seat.roomId),
+      queryFn: () => fetchRoom(getBrowserClient(), seat.roomId),
+      enabled: status === 'ready',
+    })),
+  })
+  return rooms.flatMap((query) => (query.data ? [query.data] : []))
 }
 
 /** One room by id. Returns null for a room this account is not a member of. */

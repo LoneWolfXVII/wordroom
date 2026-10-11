@@ -13,8 +13,10 @@ import { setReturnPath } from './storage'
  * locked name come through untouched — nothing has to be migrated, and there is
  * no window where a player exists twice.
  *
- * Signing in with Google *instead* would create a second user and strand the
- * seat. That is why nothing here calls `signInWithOAuth`.
+ * Signing in *instead* replaces the user, and any seat the guest held stays
+ * behind with it. So `signInWithGoogle` and `signInWithEmail` are only for a
+ * guest with nothing to lose — a returning player on a fresh device — or one who
+ * has been told what they are leaving and chosen to.
  *
  * Requires "Manual linking" to be enabled for the Supabase project; without it
  * `linkIdentity` returns 422 and the message below explains what happened.
@@ -63,6 +65,43 @@ export async function linkEmail(email: string): Promise<void> {
     { email },
     { emailRedirectTo: `${window.location.origin}${IDENTITY_CALLBACK_PATH}` },
   )
+  if (error) {
+    // The address already belongs to another account. Not retryable as a link,
+    // but the panel can offer to sign in to that account instead.
+    if (error.code === 'email_exists') {
+      throw new ApiError('email_exists', 'That email is already signed up.')
+    }
+    throw new ApiError(
+      'identity_link_failed',
+      error.message || 'Could not send the link. Check the address and try again.',
+    )
+  }
+}
+
+/** Sign in to an existing account with Google, replacing the guest. */
+export async function signInWithGoogle(returnPath: string): Promise<void> {
+  setReturnPath(returnPath)
+  const supabase = await client()
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}${IDENTITY_CALLBACK_PATH}` },
+  })
+  if (error) {
+    throw new ApiError(
+      'identity_link_failed',
+      error.message || 'Could not open Google sign-in. Try again.',
+    )
+  }
+}
+
+/** Sign in to an existing account by emailed link, replacing the guest once followed. */
+export async function signInWithEmail(email: string, returnPath: string): Promise<void> {
+  setReturnPath(returnPath)
+  const supabase = await client()
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: `${window.location.origin}${IDENTITY_CALLBACK_PATH}` },
+  })
   if (error) {
     throw new ApiError(
       'identity_link_failed',

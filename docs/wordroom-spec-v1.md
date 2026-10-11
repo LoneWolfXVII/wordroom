@@ -50,6 +50,8 @@ NYT Wordle allows one puzzle per day and no way to play with a specific group of
 **Identity**
 - Display name chosen on join; unique within room; locked after confirm. Shown in a confirmation step ("This can't be changed later").
 - Anonymous auth (Supabase) on first load. Sign-in prompted once, after the first puzzle's result — never before. Upgrading keeps room and name.
+- Home offers "Sign in" to a guest at all times, so a returning player on a new device is never locked out. A guest with no seat signs in to the existing account; a guest with seats links, keeping them. If that account already exists, signing in to it is offered, and the guest's seats stay with the guest.
+- One account can hold seats in many rooms. Home lists them all; the room sheet links back to the list.
 
 **Puzzle flow**
 - 5-letter mode, 6 guesses.

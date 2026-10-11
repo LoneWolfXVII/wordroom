@@ -19,6 +19,11 @@ export interface AuthFailure {
   detail: string
   /** False when trying again cannot possibly help. */
   retryable: boolean
+  /**
+   * The account exists already, so the way forward is to sign in to it rather
+   * than link it — at the cost of the guest's seats, which the screen says.
+   */
+  canSwitch?: true
 }
 
 /**
@@ -48,9 +53,10 @@ export function readAuthFailure(params: URLSearchParams): AuthFailure | null {
       return {
         title: 'That account is already in use.',
         detail:
-          'Another player has already signed in with it. Use a different Google account, ' +
-          'or carry on as a guest on this device.',
+          'You can sign in to it instead, and see its rooms. Anything you joined as a guest ' +
+          'on this device stays with the guest.',
         retryable: false,
+        canSwitch: true,
       }
 
     // Magic links are single-use and short-lived, and a mail client that

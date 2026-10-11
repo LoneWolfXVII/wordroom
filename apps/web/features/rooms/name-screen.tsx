@@ -221,7 +221,7 @@ export function NameScreen() {
             event.preventDefault()
             setConfirming(true)
           }}
-          placeholder="Nischal"
+          placeholder="Jane Doe"
           maxLength={PLAYER_NAME_MAX}
           autoComplete="off"
           aria-invalid={isTaken || undefined}
