@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 import { createRoom, startPlaying, uniqueName, waitForPlayable, warmRoutes } from './support/app'
 import { expect, requiresSupabase, test, testRoomName } from './support/fixtures'
 
@@ -28,9 +28,11 @@ requiresSupabase()
  * are still in after dismissing it.
  */
 async function abandonTheTripToGoogle(page: Page): Promise<void> {
-  await page.route('https://accounts.google.com/**', (route) =>
-    route.fulfill({ status: 204, body: '' }),
-  )
+  const stay = (route: Route) => route.fulfill({ status: 204, body: '' })
+  await page.route('https://accounts.google.com/**', stay)
+  // Sign-in goes through Supabase's `/authorize` first, which redirects to
+  // Google. The local stack has no Google provider, so that hop is the trip.
+  await page.route('**/auth/v1/authorize?*', stay)
 }
 
 async function openAccountPanel(page: Page): Promise<void> {

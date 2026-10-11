@@ -93,6 +93,12 @@ jobs:
       - name: Hold the SQL guess path to the TypeScript one
         run: npx tsx supabase/scripts/verify-sql-parity.mts
 
+      # Moving a guest's seats to an account is all SQL, so it is tested there.
+      - name: Seat handoff
+        run: >
+          psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          -v ON_ERROR_STOP=1 -qtA -f supabase/tests/seat_handoff.test.sql
+
   seed:
     name: word bank seed
     runs-on: ubuntu-latest

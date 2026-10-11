@@ -10,14 +10,10 @@ describe('readAuthFailure', () => {
   })
 
   it('reads the modern error_code in preference to the older error', () => {
-    // Supabase sends both, and `error` is the vaguer of the two: an
-    // `email_exists` collision arrives as `error=invalid_request`, which on its
-    // own would land in the default branch and tell the player to try again
-    // forever.
-    const failure = read('error=invalid_request&error_code=email_exists')
-    expect(failure?.title).toBe('That account is already in use.')
-    expect(failure?.retryable).toBe(false)
-    expect(failure?.canSwitch).toBe(true)
+    // Supabase sends both, and `error` is the vaguer of the two: on its own,
+    // `invalid_request` would land in the default branch and say less.
+    const failure = read('error=invalid_request&error_code=otp_expired')
+    expect(failure?.title).toBe('That link has expired.')
   })
 
   it('falls back to error when there is no error_code', () => {
@@ -31,9 +27,9 @@ describe('readAuthFailure', () => {
   })
 
   it('marks the unretryable failures as unretryable', () => {
-    // The two that no amount of tapping will fix: a permanent collision, and a
-    // misconfigured provider. Anything that says "try again" here is a lie.
-    for (const code of ['email_exists', 'identity_already_exists', 'unexpected_failure']) {
+    // A misconfigured provider: no amount of tapping will fix it, and anything
+    // that says "try again" here is a lie.
+    for (const code of ['unexpected_failure', 'server_error']) {
       expect(read(`error_code=${code}`)?.retryable, code).toBe(false)
     }
     for (const code of ['access_denied', 'otp_expired', 'over_email_send_rate_limit']) {

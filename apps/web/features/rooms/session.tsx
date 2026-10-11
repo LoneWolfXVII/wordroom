@@ -13,9 +13,9 @@ import { SupabaseConfigError } from '@/lib/supabase/env'
  * first thing that happens in a fresh browser is `signInAnonymously()`, before
  * the player has typed anything or agreed to anything.
  *
- * That user id is the durable identity. `players.auth_user_id` points at it, so
- * linking a real account later — see `identity.ts` — keeps the same id and
- * therefore the same room and the same locked name.
+ * `players.auth_user_id` points at that id. Signing in later replaces it, and
+ * the guest's seats are handed to the account on the way — see `identity.ts` —
+ * so the room and the locked name come along.
  */
 
 export type SessionStatus = 'loading' | 'ready' | 'error'
@@ -29,7 +29,7 @@ export interface SessionState {
   /** Set when the account has been upgraded; shown in the settings sheet. */
   email: string | null
   error: Error | null
-  /** Re-read the session after a link. Cheap; does not hit the network. */
+  /** Re-read the session after a sign-in. Cheap; does not hit the network. */
   refresh: () => Promise<void>
 }
 
