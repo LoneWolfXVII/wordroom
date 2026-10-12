@@ -129,26 +129,18 @@ export function HomeScreen() {
 
       <RulesSheet open={rulesOpen} onOpenChange={setRulesOpen} />
 
-      {/*
-       * A guest holding a seat *links*, so that seat comes with them. One holding
-       * none *signs in*, which is the only way to reach an account made on
-       * another device. See identity.ts.
-       */}
+      {/* New account or existing one, the rooms on this device come along. */}
       <Sheet
         open={signInOpen}
         onOpenChange={setSignInOpen}
-        title={hasAnySeat ? 'Keep your rooms' : 'Sign in'}
+        title="Sign in"
         description={
           hasAnySeat
-            ? 'Sign in so your rooms and scores follow you to any device.'
+            ? 'Your rooms here come with you, and so do any from your other devices.'
             : 'Already played on another device? Sign in to get your rooms back.'
         }
       >
-        <SignInPanel
-          mode={hasAnySeat ? 'link' : 'sign-in'}
-          returnPath="/"
-          onEmailSent={() => setSignInOpen(false)}
-        />
+        <SignInPanel returnPath="/" onEmailSent={() => setSignInOpen(false)} />
       </Sheet>
     </Screen>
   )

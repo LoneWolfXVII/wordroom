@@ -4,21 +4,10 @@ import { useEffect, useState } from 'react'
 import { Button, Help, Icon, Input, toast } from '@/components/ui'
 import { GoogleIcon, LinkIcon, SendLinkIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
-import { ApiError, resolveRoomsError } from './errors'
-import {
-  linkEmail,
-  linkGoogle,
-  looksLikeEmail,
-  signInWithEmail,
-  signInWithGoogle,
-} from './identity'
+import { resolveRoomsError } from './errors'
+import { looksLikeEmail, signInWithEmail, signInWithGoogle } from './identity'
 
 export interface SignInPanelProps {
-  /**
-   * `link` keeps this guest and its seats (the default). `sign-in` replaces the
-   * guest with an existing account — only for a guest with no seat to lose.
-   */
-  mode?: 'link' | 'sign-in'
   /** Where to come back to after Google bounces the player through its screens. */
   returnPath: string
   /** Rendered beside the primary action — the nudge's "Not now", for instance. */
@@ -29,14 +18,10 @@ export interface SignInPanelProps {
 }
 
 /**
- * The two ways to stop being a guest.
- *
- * In `link` mode both *link* an identity onto the existing anonymous user rather
- * than signing a new one in, so the room and the locked name survive. In
- * `sign-in` mode they reach an account made elsewhere. See `identity.ts`.
+ * The two ways to stop being a guest. Either one reaches a new account or an
+ * existing one, and the guest's rooms come along — see `identity.ts`.
  */
 export function SignInPanel({
-  mode: action = 'link',
   returnPath,
   secondaryAction,
   onEmailSent,
@@ -47,9 +32,6 @@ export function SignInPanel({
   const [sending, setSending] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  // Linking an email that already has an account. The way forward is to sign in
-  // to that account, which leaves this guest behind, so it is offered, not done.
-  const [emailTaken, setEmailTaken] = useState(false)
 
   // Two different waits, and only one of them ends by itself. `sending` is a
   // request we will get an answer to. `leaving` is the tab being handed to
@@ -95,7 +77,7 @@ export function SignInPanel({
     setLeaving(true)
     setProblem(null)
     try {
-      await (action === 'sign-in' ? signInWithGoogle : linkGoogle)(returnPath)
+      await signInWithGoogle(returnPath)
     } catch (error) {
       setProblem(resolveRoomsError(error).message)
       setLeaving(false)
@@ -103,22 +85,19 @@ export function SignInPanel({
     // No cleanup on success: the page is already navigating to Google.
   }
 
-  const sendLink = async (as: 'link' | 'sign-in' = action) => {
+  const sendLink = async () => {
     if (!looksLikeEmail(email)) {
       setProblem('That does not look like an email address.')
       return
     }
     setSending(true)
     setProblem(null)
-    setEmailTaken(false)
     try {
-      if (as === 'sign-in') await signInWithEmail(email.trim(), returnPath)
-      else await linkEmail(email.trim())
+      await signInWithEmail(email.trim(), returnPath)
       toast('Check your email')
       onEmailSent?.()
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'email_exists') setEmailTaken(true)
-      else setProblem(resolveRoomsError(error).message)
+      setProblem(resolveRoomsError(error).message)
     } finally {
       setSending(false)
     }
@@ -140,58 +119,29 @@ export function SignInPanel({
           onChange={(event) => {
             setEmail(event.target.value)
             setProblem(null)
-            setEmailTaken(false)
           }}
           onKeyDown={(event) => {
             if (event.key !== 'Enter') return
             event.preventDefault()
-            void sendLink(emailTaken ? 'sign-in' : action)
+            void sendLink()
           }}
           className="h-11 text-[15px]"
         />
-        {emailTaken ? (
-          <Help className="mt-2">
-            That email already has an account. Signing in to it shows that account's rooms; the
-            rooms you joined as a guest stay with the guest.
-          </Help>
-        ) : problem ? (
+        {problem ? (
           <Help tone="error" className="mt-2">
             {problem}
           </Help>
         ) : (
-          <Help className="mt-2">
-            {action === 'sign-in'
-              ? "We'll send a link to sign you in."
-              : "We'll send a link. Your name and room stay exactly as they are."}
-          </Help>
+          <Help className="mt-2">We'll send a link. Your rooms and names come with you.</Help>
         )}
         <div className="mt-3 grid grid-cols-[auto_1fr] gap-2.5">
           <Button size="sm" variant="ghost" onClick={() => setMode('choose')} disabled={busy}>
             Back
           </Button>
-          {emailTaken ? (
-            <Button
-              size="sm"
-              variant="primary"
-              className="w-full"
-              loading={busy}
-              onClick={() => sendLink('sign-in')}
-            >
-              <Icon icon={SendLinkIcon} size={18} />
-              Sign in to it instead
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="primary"
-              className="w-full"
-              loading={busy}
-              onClick={() => sendLink()}
-            >
-              <Icon icon={SendLinkIcon} size={18} />
-              Send link
-            </Button>
-          )}
+          <Button size="sm" variant="primary" className="w-full" loading={busy} onClick={sendLink}>
+            <Icon icon={SendLinkIcon} size={18} />
+            Send link
+          </Button>
         </div>
       </div>
     )

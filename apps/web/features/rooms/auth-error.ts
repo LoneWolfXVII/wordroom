@@ -19,11 +19,6 @@ export interface AuthFailure {
   detail: string
   /** False when trying again cannot possibly help. */
   retryable: boolean
-  /**
-   * The account exists already, so the way forward is to sign in to it rather
-   * than link it — at the cost of the guest's seats, which the screen says.
-   */
-  canSwitch?: true
 }
 
 /**
@@ -43,20 +38,6 @@ export function readAuthFailure(params: URLSearchParams): AuthFailure | null {
         title: 'Sign-in cancelled.',
         detail: 'You are still playing as a guest, in the same room, under the same name.',
         retryable: true,
-      }
-
-    // `linkIdentity` onto an account whose email already belongs to another
-    // user. Retrying is guaranteed to fail: the collision is permanent until
-    // one side changes, and this seat cannot be merged into the other account.
-    case 'email_exists':
-    case 'identity_already_exists':
-      return {
-        title: 'That account is already in use.',
-        detail:
-          'You can sign in to it instead, and see its rooms. Anything you joined as a guest ' +
-          'on this device stays with the guest.',
-        retryable: false,
-        canSwitch: true,
       }
 
     // Magic links are single-use and short-lived, and a mail client that

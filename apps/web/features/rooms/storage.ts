@@ -13,6 +13,7 @@ const ACTIVE_ROOM_KEY = 'wordroom.activeRoom'
 const SAVE_PROMPT_KEY = 'wordroom.savePromptSeen'
 const PENDING_SEAT_KEY = 'wordroom.pendingSeat'
 const RETURN_PATH_KEY = 'wordroom.returnPath'
+const HANDOFF_KEY = 'wordroom.seatHandoff'
 
 type Store = 'local' | 'session'
 
@@ -163,4 +164,22 @@ export function getReturnPath(): string | null {
 
 export function setReturnPath(path: string | null): void {
   write('session', RETURN_PATH_KEY, path)
+}
+
+/* -------------------------------------------------------------------------- */
+/* Seat handoff                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The token that moves a guest's seats to the account it signs in as.
+ *
+ * Local, not session, storage: an emailed link often opens in a new tab, and
+ * that tab is the one that redeems it. See `identity.ts`.
+ */
+export function getHandoffToken(): string | null {
+  return read('local', HANDOFF_KEY)
+}
+
+export function setHandoffToken(token: string | null): void {
+  write('local', HANDOFF_KEY, token)
 }

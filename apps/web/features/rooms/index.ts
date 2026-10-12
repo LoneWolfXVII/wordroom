@@ -67,7 +67,12 @@ export {
   resolveRoomsError,
 } from './errors'
 export { HomeScreen } from './home-screen'
-export { IDENTITY_CALLBACK_PATH, linkEmail, linkGoogle, looksLikeEmail } from './identity'
+export {
+  IDENTITY_CALLBACK_PATH,
+  looksLikeEmail,
+  signInWithEmail,
+  signInWithGoogle,
+} from './identity'
 export { JoinRoomScreen } from './join-room-screen'
 export { LobbyScreen } from './lobby-screen'
 export { MemberList, type MemberListProps } from './member-list'
