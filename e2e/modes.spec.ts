@@ -62,3 +62,30 @@ test('Enter submits after picking a length with the mouse', async ({ page }) => 
   await page.keyboard.press('Enter')
   await expect(page.locator('main').locator('.bg-correct, .bg-present, .bg-absent')).toHaveCount(6)
 })
+
+/**
+ * Switching length used to open a remembered number, or No. 1 for a length not
+ * yet opened this visit, with an empty board. Coming back to a length now
+ * resumes it: the same puzzle, with the rows already played.
+ */
+test('switching back to a length keeps its board', async ({ page }) => {
+  await warmRoutes(page)
+  await createRoom(page, testRoomName('modes-back'), uniqueName('Host'))
+  await startPlaying(page)
+  await waitForPlayable(page)
+
+  await page.getByRole('radio', { name: '6' }).click()
+  await waitForPlayable(page)
+  await page.keyboard.type('planet')
+  await page.keyboard.press('Enter')
+  const played = page.locator('main').locator('.bg-correct, .bg-present, .bg-absent')
+  await expect(played).toHaveCount(6)
+
+  await page.getByRole('radio', { name: '5' }).click()
+  await waitForPlayable(page)
+  await expect(played).toHaveCount(0)
+
+  await page.getByRole('radio', { name: '6' }).click()
+  await waitForPlayable(page)
+  await expect(played).toHaveCount(6)
+})
