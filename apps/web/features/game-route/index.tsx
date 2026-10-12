@@ -19,9 +19,11 @@
  * than importing across feature folders.
  */
 
+import { FOUR } from '@wordroom/shared'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Icon, Screen, TileArt } from '@/components/ui'
 import { HomeIcon } from '@/components/ui/icons'
+import { FourScreen, useFourStore } from '@/features/four'
 import { createGameApi, GameScreen, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
 import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
@@ -50,6 +52,7 @@ export function GameRoute() {
   const puzzle = useGameStore((s) => s.puzzle)
   const status = useGameStore((s) => s.status)
   const reset = useGameStore((s) => s.reset)
+  const setMode = useGameStore((s) => s.setMode)
 
   // `supabaseEnv()` builds a fresh object on every call, so reading it during
   // render gave `env` a new identity each time — which recreated the
@@ -86,22 +89,57 @@ export function GameRoute() {
   const settingsReady = useSettingsStore((s) => s.ready)
   useEffect(() => bindSettingsToGame(), [])
 
-  useEffect(() => {
-    if (!seat || !env) return
-
+  // One transport for both game stores.
+  const api = useMemo(() => {
+    if (!env) return null
     const supabase = getBrowserClient()
+    return createGameApi({
+      restUrl: `${env.url.replace(/\/$/, '')}/rest/v1`,
+      anonKey: env.anonKey,
+      getAccessToken: async () => {
+        const { data } = await supabase.auth.getSession()
+        return data.session?.access_token ?? null
+      },
+    })
+  }, [env])
+
+  useEffect(() => {
+    if (!seat || !api) return
     configure({
       room: { id: seat.room.id, name: seat.room.name, code: seat.room.code },
-      api: createGameApi({
-        restUrl: `${env.url.replace(/\/$/, '')}/rest/v1`,
-        anonKey: env.anonKey,
-        getAccessToken: async () => {
-          const { data } = await supabase.auth.getSession()
-          return data.session?.access_token ?? null
-        },
-      }),
+      api,
     })
-  }, [seat, env, configure])
+  }, [seat, api, configure])
+
+  // Four at once has its own store. Open the game this player is up to: its
+  // boards are mode-4 puzzles numbered 4(N-1)+1..4N, so the board `resume.ts`
+  // finds belongs to game ceil(n / 4).
+  const configureFour = useFourStore((s) => s.configure)
+  const loadFour = useFourStore((s) => s.load)
+  const resetFour = useFourStore((s) => s.reset)
+  const fourGame = useFourStore((s) => s.game)
+  const fourStatus = useFourStore((s) => s.status)
+  const [fourResultOpen, setFourResultOpen] = useState(false)
+
+  useEffect(() => {
+    if (!seat || !api || mode !== FOUR) return
+    configureFour({ roomId: seat.room.id, api })
+    if (useFourStore.getState().game !== null) return
+
+    let cancelled = false
+    void (async () => {
+      const { number } = await resumePuzzleNumber(getBrowserClient(), seat.room.id, FOUR)
+      if (!cancelled) await loadFour(Math.ceil(number / 4))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [seat, api, mode, configureFour, loadFour])
+
+  // The result opens when a game ends, as the single board's does.
+  useEffect(() => {
+    setFourResultOpen(fourStatus === 'won' || fourStatus === 'over')
+  }, [fourStatus])
 
   // Settings changes apply from the next puzzle, never the one in play.
   useEffect(() => {
@@ -112,7 +150,7 @@ export function GameRoute() {
   // Open the puzzle this player is up to, with the board they left. See `resume.ts`.
   // Waits for the player's settings, because `loadPuzzle` snapshots them.
   useEffect(() => {
-    if (!seat || !env || !settingsReady || puzzle) return
+    if (!seat || !env || !settingsReady || puzzle || mode === FOUR) return
 
     let cancelled = false
     void (async () => {
@@ -163,13 +201,27 @@ export function GameRoute() {
 
   return (
     <>
-      <GameScreen
-        onOpenRoom={() => setRoomOpen(true)}
-        onOpenLeaderboard={() => setBoardOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        rank={delta ? { before: delta.before, after: delta.after } : null}
-        nudge={<SaveProgressNudge />}
-      />
+      {mode === FOUR ? (
+        <FourScreen
+          roomName={seat.room.name}
+          mode={mode}
+          onModeChange={(next) => void setMode(next)}
+          onOpenRoom={() => setRoomOpen(true)}
+          onOpenLeaderboard={() => setBoardOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          resultOpen={fourResultOpen}
+          onOpenResult={() => setFourResultOpen(true)}
+          result={null}
+        />
+      ) : (
+        <GameScreen
+          onOpenRoom={() => setRoomOpen(true)}
+          onOpenLeaderboard={() => setBoardOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          rank={delta ? { before: delta.before, after: delta.after } : null}
+          nudge={<SaveProgressNudge />}
+        />
+      )}
 
       {/*
        * The room sheet needs two things only the game knows: which puzzle is on
@@ -181,8 +233,11 @@ export function GameRoute() {
       <RoomSheet
         open={roomOpen}
         onOpenChange={setRoomOpen}
-        puzzleId={puzzle?.id ?? null}
-        onLeft={reset}
+        puzzleId={mode === FOUR ? (fourGame?.boards[0]?.puzzleId ?? null) : (puzzle?.id ?? null)}
+        onLeft={() => {
+          reset()
+          resetFour()
+        }}
       />
 
       <LeaderboardSheet
@@ -192,7 +247,7 @@ export function GameRoute() {
         roomId={seat.room.id}
         playerId={seat.player.id}
         mode={mode}
-        puzzleNumber={puzzle?.number ?? null}
+        puzzleNumber={mode === FOUR ? (fourGame?.number ?? null) : (puzzle?.number ?? null)}
       />
 
       <SettingsSheet

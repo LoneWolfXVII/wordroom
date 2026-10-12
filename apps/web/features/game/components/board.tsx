@@ -123,7 +123,7 @@ function Row({ mode, letters, marks, flip, bounce, shakeToken, dimmed, reduced }
  * The class has to come off again or the next rejection would not re-trigger
  * the animation — restarting a CSS animation means removing and re-adding it.
  */
-function useShake(token: number): boolean {
+export function useShake(token: number): boolean {
   const [shaking, setShaking] = useState(false)
 
   useEffect(() => {

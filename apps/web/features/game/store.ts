@@ -1,5 +1,6 @@
 import {
   DEFAULT_PLAYER_SETTINGS,
+  FOUR,
   isHardModeValid,
   MAX_GUESSES,
   type Mode,
@@ -301,7 +302,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
           return {
             puzzle,
-            mode: puzzle.mode,
+            // Switching to Four at once while this was in flight wins: the
+            // puzzle is kept for coming back, but the screen stays on Four.
+            mode: state.mode === FOUR ? FOUR : puzzle.mode,
             numbers: { ...state.numbers, [puzzle.mode]: puzzle.number },
             status: 'playing' as GameStatus,
             ...fresh,
@@ -491,6 +494,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
     async setMode(mode) {
       const state = get()
       if (mode === state.mode) return
+      // Four at once has its own store and screen. The switcher lives here, so
+      // the mode does too, but there is no single-board puzzle to load for it,
+      // and the one on hold is what coming back should find.
+      if (mode === FOUR) {
+        set({ mode })
+        return
+      }
       await swapBoard(set, get().loadPuzzle(mode, state.numbers[mode]))
     },
 

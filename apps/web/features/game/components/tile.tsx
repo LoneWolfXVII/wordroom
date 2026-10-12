@@ -42,7 +42,8 @@ export function Tile({ letter, mark, flip = false, bounce = false, delayMs = 0 }
     <div
       className={cn(
         'grid h-[var(--tile-size)] w-[var(--tile-size)] place-items-center',
-        'rounded-sm border-[1.5px] text-[24px] font-semibold uppercase',
+        // Four at once draws much smaller tiles and sets `--tile-font` to match.
+        'rounded-sm border-[1.5px] text-[length:var(--tile-font,24px)] font-semibold uppercase',
         'transition-[border-color] duration-(--duration-state)',
         mark === null
           ? // An unrevealed tile darkens its border once it holds a letter, and

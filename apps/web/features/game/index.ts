@@ -17,13 +17,15 @@ export {
   type GuessResult,
   setGameApi,
 } from './api'
-export { Board, type BoardProps } from './components/board'
+export { Board, type BoardProps, useShake } from './components/board'
+export { GameHeader, type GameHeaderProps } from './components/game-header'
 export { GameScreen, type GameScreenProps } from './components/game-screen'
-export { Keyboard, type KeyboardProps } from './components/keyboard'
+export { Keyboard, type KeyboardProps, type SplitKeyState } from './components/keyboard'
 export { PuzzleNumber } from './components/puzzle-number'
 export { type RankDelta, ResultSheet, type ResultSheetProps } from './components/result-sheet'
 export { Tile, type TileProps } from './components/tile'
 export { isGuessListReady, loadGuessList, preloadGuessList } from './guess-list'
+export { usePhysicalKeyboard } from './hooks'
 export { accumulateKeyStates, type KeyStates } from './keys'
 export {
   lettersShareWarning,
