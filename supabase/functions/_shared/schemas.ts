@@ -8,7 +8,7 @@
  * better message, not to replace it.
  */
 
-import { type Mode, MODES } from '@wordroom/shared'
+import { WORD_MODES, type WordMode } from '@wordroom/shared'
 import { z } from 'zod'
 import { CODE_PATTERN } from './codes.ts'
 
@@ -17,7 +17,8 @@ const DISPLAY_TEXT = /^[^\p{Cc}\p{Cf}]+$/u
 
 export const modeSchema = z
   .union([z.literal(5), z.literal(6), z.literal(7)])
-  .refine((value): value is Mode => MODES.includes(value))
+  // Single-board modes only: Four at once is served by its own SQL functions.
+  .refine((value): value is WordMode => WORD_MODES.includes(value))
 
 export const puzzleNumberSchema = z
   .number()
