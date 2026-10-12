@@ -225,7 +225,7 @@ describe('configure across rooms', () => {
     expect(next.guesses).toEqual([])
     expect(next.current).toBe('')
     expect(next.status).toBe('idle')
-    expect(next.numbers).toEqual({ 5: 1, 6: 1, 7: 1 })
+    expect(next.numbers).toEqual({ 5: 1, 6: 1, 7: 1, 4: 1 })
   })
 
   it('keeps play state when reconfigured for the same room', () => {

@@ -6,13 +6,35 @@
  * serialised into a client response. See CLAUDE.md, "Answers never reach the client".
  */
 
-/** Word length. Each mode has its own puzzle sequence and its own leaderboard. */
-export type Mode = 5 | 6 | 7
+/** Word length of a single-board mode. */
+export type WordMode = 5 | 6 | 7
 
-export const MODES: readonly Mode[] = [5, 6, 7] as const
+/**
+ * A mode: a word length, or Four at once — four 5-letter boards solved together.
+ * Each mode has its own puzzle sequence and its own leaderboard.
+ */
+export type Mode = WordMode | 4
 
-/** Guesses allowed per puzzle, in every mode. */
+export const FOUR = 4 as const
+export const FOUR_BOARDS = 4
+export const FOUR_MAX_GUESSES = 9
+
+/** Switcher order. */
+export const MODES: readonly Mode[] = [5, 6, 7, 4] as const
+
+/** The single-board modes, the only ones `get_puzzle` and `submit_guess` serve. */
+export const WORD_MODES: readonly WordMode[] = [5, 6, 7] as const
+
+/** Guesses allowed per puzzle in a single-board mode. */
 export const MAX_GUESSES = 6
+
+export function wordLength(mode: Mode): WordMode {
+  return mode === FOUR ? 5 : mode
+}
+
+export function maxGuesses(mode: Mode): number {
+  return mode === FOUR ? FOUR_MAX_GUESSES : MAX_GUESSES
+}
 
 /** Per-tile result of a scored guess. */
 export type Mark = 'correct' | 'present' | 'absent'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { points } from './points.js'
+import { fourBoardPoints, fourGamePoints, points } from './points.js'
 
 describe('points', () => {
   it('scores a solve as 7 minus guesses', () => {
@@ -21,5 +21,22 @@ describe('points', () => {
     expect(points(0, true)).toBe(0)
     expect(points(-1, true)).toBe(0)
     expect(points(2.5, true)).toBe(0)
+  })
+})
+
+describe('Four points', () => {
+  it('scores 10 - n per solved board, 0 when unsolved', () => {
+    expect(fourBoardPoints(1)).toBe(9)
+    expect(fourBoardPoints(9)).toBe(1)
+    expect(fourBoardPoints(null)).toBe(0)
+    expect(fourBoardPoints(10)).toBe(0)
+    expect(fourBoardPoints(0)).toBe(0)
+    expect(fourBoardPoints(2.5)).toBe(0)
+  })
+
+  it('sums a game, and the best possible is 30', () => {
+    expect(fourGamePoints([1, 2, 3, 4])).toBe(30)
+    expect(fourGamePoints([4, 6, 8, null])).toBe(6 + 4 + 2)
+    expect(fourGamePoints([null, null, null, null])).toBe(0)
   })
 })

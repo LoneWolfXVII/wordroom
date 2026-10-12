@@ -162,7 +162,7 @@ const initialState: GameState = {
   room: null,
   puzzle: null,
   mode: 5,
-  numbers: { 5: 1, 6: 1, 7: 1 },
+  numbers: { 5: 1, 6: 1, 7: 1, 4: 1 },
   hardMode: DEFAULT_PLAYER_SETTINGS.hardMode,
   timerMode: DEFAULT_PLAYER_SETTINGS.timerMode,
   perPuzzleSeconds: DEFAULT_PLAYER_SETTINGS.perPuzzleSeconds,
