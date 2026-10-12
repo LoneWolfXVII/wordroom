@@ -95,7 +95,7 @@ NYT Wordle allows one puzzle per day and no way to play with a specific group of
 
 ### P1 — fast follow
 
-- 6- and 7-letter modes with their own sequences and boards.
+- ~~6- and 7-letter modes with their own sequences and boards.~~ Shipped.
 - Hard mode toggle (greens must stay, yellows must be reused). Shown as a badge on leaderboard rows.
 - Difficulty tiers per room: common / tricky / brutal.
 - Live grid: see friends' colour-only progress on the current puzzle.

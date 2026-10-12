@@ -45,6 +45,15 @@ export function Board({
         phase === 'out' && styles.slideOut,
         phase === 'in' && styles.slideIn,
       )}
+      // Seven 56px tiles are wider than a phone. The tile is as large as the
+      // game allows, or as large as `mode` tiles and their gaps can be across
+      // the board's container (`main`, an inline-size container), whichever is
+      // smaller.
+      style={
+        {
+          '--tile-size': `min(var(--tile-base), calc((100cqw - ${mode - 1} * var(--size-gap)) / ${mode}))`,
+        } as React.CSSProperties
+      }
     >
       {Array.from({ length: MAX_GUESSES }, (_, index) => {
         const scored = guesses[index]

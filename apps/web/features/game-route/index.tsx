@@ -169,7 +169,6 @@ export function GameRoute() {
         onOpenSettings={() => setSettingsOpen(true)}
         rank={delta ? { before: delta.before, after: delta.after } : null}
         nudge={<SaveProgressNudge />}
-        showModes={false}
       />
 
       {/*

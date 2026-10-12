@@ -41,7 +41,7 @@ export interface GameScreenProps {
   rank?: RankDelta | null
   /** Workstream 3's save-progress nudge. */
   nudge?: ReactNode
-  /** The 6- and 7-letter modes are P1; hide the switcher until they ship. */
+  /** Show the word-length switcher. Off only in harnesses that pin one mode. */
   showModes?: boolean
 }
 
@@ -221,7 +221,7 @@ export function GameScreen({
         </div>
       ) : null}
 
-      <main className="relative grid min-h-0 flex-1 place-items-center">
+      <main className="relative grid min-h-0 flex-1 place-items-center [container-type:inline-size]">
         <Board
           mode={mode}
           guesses={guesses}
