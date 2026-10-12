@@ -173,8 +173,11 @@ const counts = JSON.parse(countsRaw) as Record<string, number>
 
 const seqRows: string[] = []
 const seqLabels: string[] = []
-for (const mode of [5, 6, 7] as const) {
-  const count = counts[String(mode)] as number
+// Four at once (mode 4) draws from the 5-letter bank, one shuffle of its own
+// keyed by mode 4, and a game takes four consecutive positions.
+for (const mode of [5, 6, 7, 4] as const) {
+  const len = mode === 4 ? 5 : mode
+  const count = counts[String(len)] as number
   for (let room = 0; room < 25; room++) {
     const seed = [...crypto.getRandomValues(new Uint8Array(16))]
       .map((b) => b.toString(16).padStart(2, '0'))
@@ -183,7 +186,7 @@ for (const mode of [5, 6, 7] as const) {
     // re-keys the shuffle.
     for (const n of [1, 2, 9, 250, count - 1, count, count + 1, count * 2 + 3]) {
       const index = await puzzleIndex(seed, mode, n, count)
-      seqRows.push(`('${seed}',${mode},${n},${count},${index})`)
+      seqRows.push(`('${seed}',${mode},${len},${n},${count},${index})`)
       seqLabels.push(`${seed.slice(0, 8)} mode ${mode} no.${n}`)
     }
   }
@@ -191,11 +194,11 @@ for (const mode of [5, 6, 7] as const) {
 
 writeFileSync(
   '/tmp/parity-sequence.sql',
-  `select (select wb.word from public.word_bank wb where wb.len = t.m
+  `select (select wb.word from public.word_bank wb where wb.len = t.l
              order by wb.rank, wb.word offset public.puzzle_index(t.s, t.m, t.n, t.c) limit 1),
-          (select wb.word from public.word_bank wb where wb.len = t.m
+          (select wb.word from public.word_bank wb where wb.len = t.l
              order by wb.rank, wb.word offset t.ts_index limit 1)
-     from (values ${seqRows.join(',')}) as t(s,m,n,c,ts_index);`,
+     from (values ${seqRows.join(',')}) as t(s,m,l,n,c,ts_index);`,
 )
 const seqOut = execFileSync(
   'psql',
@@ -210,7 +213,7 @@ const seqBad = seqLines
   })
   .filter((x): x is string => x !== null)
 
-console.log(`compared ${seqLines.length} puzzle answers across all three modes`)
+console.log(`compared ${seqLines.length} puzzle answers across all four modes`)
 console.log(`sequence mismatches ${seqBad.length}`)
 if (seqBad.length) console.log(seqBad.slice(0, 6).join('\n'))
 

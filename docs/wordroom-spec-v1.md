@@ -93,9 +93,17 @@ NYT Wordle allows one puzzle per day and no way to play with a specific group of
 - Motion: Motion (motion/react) + CSS. 120 ms micro, 200 ms state, 350 ms structural, 600 ms reveal with 70 ms stagger. Motion answers an action; only the row reveal and result moment animate unprompted. Reduced-motion fallbacks required.
 - No cartoon illustration, no confetti, no gradients.
 
+### Four at once (shipped)
+
+- A fourth mode beside 5 / 6 / 7: four hidden 5-letter words, 9 guesses. Each guess is scored on every unsolved board; a solved board locks.
+- Points per board: `10 − n` for a board solved on guess `n`, 0 unsolved; best game 30. A game counts as solved for stats and streaks only if all four are.
+- Its own sequence (mode 4 of the room seed), its own board and stats. Hard mode and timers are not offered.
+- Share: `Wordroom Four No. 12 · 26 pts`, then a 2×2 of the guess that solved each board (🟥 unsolved). No letters.
+- Design and rationale: `docs/superpowers/specs/2026-10-12-more-games-design.md`.
+
 ### P1 — fast follow
 
-- 6- and 7-letter modes with their own sequences and boards.
+- ~~6- and 7-letter modes with their own sequences and boards.~~ Shipped.
 - Hard mode toggle (greens must stay, yellows must be reused). Shown as a badge on leaderboard rows.
 - Difficulty tiers per room: common / tricky / brutal.
 - Live grid: see friends' colour-only progress on the current puzzle.

@@ -1,10 +1,9 @@
 'use client'
 
-import { MODES, type Mode } from '@wordroom/shared'
 import { useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
-import { Button, Icon, IconButton, Screen, ScrollingText, SegmentedControl } from '@/components/ui'
-import { ForwardIcon, LeaderboardIcon, ResultIcon, SettingsIcon } from '@/components/ui/icons'
+import { Button, Icon, Screen } from '@/components/ui'
+import { ForwardIcon, ResultIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
 import { useMediaQuery } from '@/lib/use-media-query'
 import {
@@ -19,11 +18,9 @@ import { useGameStore } from '../store'
 import { clockLabel } from '../timer'
 import { Board } from './board'
 import styles from './board.module.css'
+import { GameHeader } from './game-header'
 import { Keyboard } from './keyboard'
-import { PuzzleNumber } from './puzzle-number'
 import { type RankDelta, ResultSheet } from './result-sheet'
-
-const MODE_OPTIONS = MODES.map((mode) => ({ value: String(mode), label: String(mode) }))
 
 /** A phone shares through the OS sheet; a desktop browser copies. */
 const COARSE_POINTER = '(pointer: coarse)'
@@ -41,7 +38,7 @@ export interface GameScreenProps {
   rank?: RankDelta | null
   /** Workstream 3's save-progress nudge. */
   nudge?: ReactNode
-  /** The 6- and 7-letter modes are P1; hide the switcher until they ship. */
+  /** Show the word-length switcher. Off only in harnesses that pin one mode. */
   showModes?: boolean
 }
 
@@ -141,87 +138,22 @@ export function GameScreen({
 
   return (
     <Screen className={styles.game}>
-      {/*
-       * `minmax(0,1fr)`, not `1fr`. A bare `1fr` is `minmax(auto,1fr)`, so a
-       * column refuses to shrink below its content — and the room-name button
-       * on the left is wider than the two icons on the right, so it took more
-       * than its half and pushed the puzzle number off centre. A long room name
-       * moved "No. 2" 25px to the right of the board it sits above.
-       *
-       * Zero as the floor lets both sides settle equal and truncate instead.
-       * The number is what has to be centred; the room name already ellipsises.
-       */}
-      <header className="grid min-h-14 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 pt-1.5">
-        <div>
-          {onOpenRoom === undefined ? null : (
-            <button
-              type="button"
-              onClick={onOpenRoom}
-              className={cn(
-                'flex h-9 w-full max-w-[150px] items-center gap-1.5 rounded-md pr-2.5 pl-3',
-                'text-sm font-medium text-ink-2 transition-colors duration-(--duration-micro) active:bg-surface-2',
-              )}
-            >
-              {/*
-               * `min-w-0` is inside `ScrollingText`. Without it the span's
-               * flex parent sized it to its content, `truncate` never engaged,
-               * and a long room name ran straight under the puzzle number
-               * instead of stopping at the 150px cap.
-               */}
-              <ScrollingText>{room?.name ?? 'Room'}</ScrollingText>
-              <Icon icon={ForwardIcon} size={16} className="flex-none" />
-            </button>
-          )}
-        </div>
+      <GameHeader
+        roomName={room?.name ?? null}
+        number={puzzle?.number ?? null}
+        subtitle={subtitle}
+        timed={timed}
+        urgent={clock.urgent}
+        mode={mode}
+        onModeChange={(next) => void setMode(next)}
+        showModes={showModes}
+        onOpenRoom={onOpenRoom}
+        onOpenLeaderboard={onOpenLeaderboard}
+        onOpenSettings={onOpenSettings}
+        leaderboardUpdate={leaderboardUpdate}
+      />
 
-        {/*
-         * `max-w` on the middle column, because it is an `auto` track: it was
-         * sized by the longest thing in it, and "Puzzle 3 in Teeehehehehehe" is
-         * far longer than "No. 3". A long room name therefore widened the
-         * centre and squeezed both sides until the name button had nowhere to
-         * go. The number is what must stay centred; the sentence under it can
-         * ellipsise.
-         */}
-        <div className="mx-auto max-w-[52vw] text-center leading-none">
-          <PuzzleNumber number={puzzle?.number ?? null} />
-          <div
-            className={cn(
-              'mt-[3px] truncate text-[12px] text-muted',
-              timed && 'tabular',
-              clock.urgent && 'text-accent',
-            )}
-          >
-            {subtitle}
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-0.5">
-          {onOpenLeaderboard === undefined ? null : (
-            <IconButton
-              icon={LeaderboardIcon}
-              label="Leaderboard"
-              notification={leaderboardUpdate}
-              onClick={onOpenLeaderboard}
-            />
-          )}
-          {onOpenSettings === undefined ? null : (
-            <IconButton icon={SettingsIcon} label="Settings" onClick={onOpenSettings} />
-          )}
-        </div>
-      </header>
-
-      {showModes ? (
-        <div className="mt-1 flex flex-none justify-center">
-          <SegmentedControl
-            options={MODE_OPTIONS}
-            value={String(mode)}
-            onValueChange={(next) => void setMode(Number(next) as Mode)}
-            label="Word length"
-          />
-        </div>
-      ) : null}
-
-      <main className="relative grid min-h-0 flex-1 place-items-center">
+      <main className="relative grid min-h-0 flex-1 place-items-center [container-type:inline-size]">
         <Board
           mode={mode}
           guesses={guesses}

@@ -18,14 +18,15 @@
  * root keeps it off the rest of the app.
  */
 .game {
-  --tile-size: var(--size-tile);
+  /* The largest a tile may be. `Board` shrinks it to fit a long word. */
+  --tile-base: var(--size-tile);
   --key-height: 54px;
   --number-size: 24px;
 }
 
 @media (max-height: 660px) {
   .game {
-    --tile-size: 48px;
+    --tile-base: 48px;
     --key-height: 46px;
     --number-size: 22px;
   }

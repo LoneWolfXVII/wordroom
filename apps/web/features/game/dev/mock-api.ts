@@ -22,6 +22,8 @@ const FIXTURES: Record<Mode, readonly string[]> = {
   5: ['cream', 'piece', 'cloud', 'board', 'chest', 'charm', 'south', 'trial', 'power', 'final'],
   6: ['colony', 'battle', 'defeat', 'advise', 'motive', 'dinner', 'tablet', 'poetry', 'double'],
   7: ['mineral', 'involve', 'thirsty', 'eternal', 'confirm', 'student', 'freedom', 'massage'],
+  // Four at once is not played through this single-board double.
+  4: [],
 }
 
 /** Enough delay to see the in-flight states without making the harness tedious. */
@@ -122,6 +124,15 @@ export function createMockGameApi(options: MockApiOptions = {}): GameApi {
         attempt.elapsedMs = elapsedMs ?? null
       }
       return result(puzzleId, attempt, null)
+    },
+
+    // Four at once is not played through this single-board double.
+    async getFour() {
+      throw new GameApiError('bad_request', 'Four at once is not available in the dev harness.')
+    },
+
+    async submitFourGuess() {
+      throw new GameApiError('bad_request', 'Four at once is not available in the dev harness.')
     },
   }
 }

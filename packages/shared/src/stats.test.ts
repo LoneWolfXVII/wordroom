@@ -123,3 +123,19 @@ describe('computeStats', () => {
     expect(stats.distribution).toEqual([0, 0, 2, 0, 0, 0])
   })
 })
+
+describe('Four at once stats', () => {
+  it('has nine distribution buckets, so a 9-guess game is counted', () => {
+    const stats = computeStats(
+      [
+        { mode: 4, number: 1, solved: true, guessCount: 9 },
+        { mode: 4, number: 2, solved: true, guessCount: 7 },
+      ],
+      4,
+    )
+    expect(stats.distribution).toHaveLength(9)
+    expect(stats.distribution[8]).toBe(1)
+    expect(stats.distribution[6]).toBe(1)
+    expect(stats.won).toBe(2)
+  })
+})

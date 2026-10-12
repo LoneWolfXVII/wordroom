@@ -140,9 +140,13 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     { scope: 'worker' },
   ],
 
-  page: async ({ page }, use) => {
+  // One browser account per project rather than one for the run. Every room a
+  // test creates through the UI is this account's, and create-room allows ten
+  // an hour per account: mobile and desktop together went past it, and the
+  // last few tests failed at "Too many tries" for reasons unrelated to them.
+  page: async ({ page }, use, testInfo) => {
     await hideDevOverlay(page)
-    await signInAs(page, await sessionFor('player'))
+    await signInAs(page, await sessionFor(`player-${testInfo.project.name}`))
     await use(page)
   },
 

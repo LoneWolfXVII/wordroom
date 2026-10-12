@@ -71,10 +71,14 @@ export function LeaderboardRow({ entry, moved }: LeaderboardRowProps) {
         )}
       </span>
 
-      <MiniGrid
-        rows={progress.grid}
-        label={`Colour grid, ${progress.grid.length} of 6 guesses, no letters`}
-      />
+      {progress.solvedAt ? (
+        <FourChips solvedAt={progress.solvedAt} />
+      ) : (
+        <MiniGrid
+          rows={progress.grid}
+          label={`Colour grid, ${progress.grid.length} of 6 guesses, no letters`}
+        />
+      )}
 
       <span className="tabular min-w-[34px] text-right font-semibold">
         {row.points}
@@ -83,5 +87,32 @@ export function LeaderboardRow({ entry, moved }: LeaderboardRowProps) {
         </span>
       </span>
     </motion.li>
+  )
+}
+
+/**
+ * Four at once in place of the colour grid: one chip per board, the guess that
+ * solved it, or a dash. Numbers only, so it spoils nothing.
+ */
+function FourChips({ solvedAt }: { solvedAt: readonly (number | null)[] }) {
+  return (
+    <span
+      role="img"
+      aria-label={`Four boards: ${solvedAt.map((n) => (n === null ? 'unsolved' : `solved in ${n}`)).join(', ')}`}
+      className="grid grid-cols-2 gap-[3px]"
+    >
+      {solvedAt.map((n, board) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: boards are positional.
+          key={board}
+          className={cn(
+            'tabular grid h-[15px] w-[15px] place-items-center rounded-[3px] text-[10px] font-semibold',
+            n === null ? 'bg-surface-2 text-muted' : 'bg-correct text-on-tile',
+          )}
+        >
+          {n ?? '–'}
+        </span>
+      ))}
+    </span>
   )
 }

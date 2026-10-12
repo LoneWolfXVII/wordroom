@@ -68,7 +68,7 @@ and the app signs in on first load — so one browser context is one account.
 A suite that hands every test a clean context spends the budget in about twenty
 tests and then fails for reasons that have nothing to do with the app.
 
-So accounts are named and reused: two browser players (`player`, `friend`) and
+So accounts are named and reused: browser players (`player-<project>`, one per Playwright project so each has its own create-room budget, and `friend`) and
 two out-of-band accounts (`host`, `rival`). Each is signed in once and cached in
 `e2e/.cache/sessions.json`, outside git and outside Playwright's output
 directory, so later runs cost nothing. Delete that file to start over. Tests are

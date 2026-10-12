@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockGameApi } from './dev/mock-api'
 import { loadGuessList } from './guess-list'
 import { useGameStore } from './store'
@@ -225,7 +225,7 @@ describe('configure across rooms', () => {
     expect(next.guesses).toEqual([])
     expect(next.current).toBe('')
     expect(next.status).toBe('idle')
-    expect(next.numbers).toEqual({ 5: 1, 6: 1, 7: 1 })
+    expect(next.numbers).toEqual({ 5: 1, 6: 1, 7: 1, 4: 1 })
   })
 
   it('keeps play state when reconfigured for the same room', () => {
@@ -329,5 +329,45 @@ describe('the end of an attempt', () => {
     await play('slate')
     expect(store().status).toBe('playing')
     expect(prefetchedCount()).toBe(0)
+  })
+})
+
+describe('switching to Four at once', () => {
+  it('opened on Four, picking 5 leaves the puzzle to the resume rather than No. 1', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const getPuzzle = vi.spyOn(api, 'getPuzzle')
+    store().reset()
+    store().configure({ room: ROOM, mode: 4, api })
+    await store().setMode(5)
+    expect(store().mode).toBe(5)
+    expect(getPuzzle).not.toHaveBeenCalled()
+  })
+
+  it('stays on Four when picked while the first puzzle is still loading', async () => {
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api: createMockGameApi({ latencyMs: 30 }) })
+    const loading = store().loadPuzzle(5, 1)
+    await store().setMode(4)
+    await loading
+    expect(store().mode).toBe(4)
+  })
+
+  it('changes mode without loading a single-board puzzle, and comes back', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const getPuzzle = vi.spyOn(api, 'getPuzzle')
+    store().configure({ room: ROOM, api })
+    const before = store().puzzle
+
+    await store().setMode(4)
+    expect(store().mode).toBe(4)
+    // Four has its own store and screen; this one asks for nothing and keeps
+    // the 5-letter puzzle it had.
+    expect(getPuzzle).not.toHaveBeenCalled()
+    expect(store().puzzle).toBe(before)
+    expect(store().status).not.toBe('error')
+
+    await store().setMode(5)
+    expect(store().mode).toBe(5)
+    expect(store().puzzle?.mode).toBe(5)
   })
 })

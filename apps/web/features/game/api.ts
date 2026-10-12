@@ -1,4 +1,11 @@
-import type { Mark, MarkRow, Mode, Puzzle } from '@wordroom/shared'
+import {
+  decodeMarks,
+  FOUR_BOARDS,
+  type Mark,
+  type MarkRow,
+  type Mode,
+  type Puzzle,
+} from '@wordroom/shared'
 
 /**
  * The game's view of the Edge Functions.
@@ -51,10 +58,48 @@ export interface GuessResult {
   elapsedMs: number | null
 }
 
+/** One board of a Four at once game, as its player sees it. */
+export interface FourBoardState {
+  board: 1 | 2 | 3 | 4
+  puzzleId: string
+  marks: MarkRow[]
+  /** Guesses this board took: the guess that solved it, once solved. */
+  guessCount: number
+  solved: boolean
+  /** The board's word. Set only once it is solved or the game is over. */
+  word: string | null
+}
+
+/** A Four at once game: four boards, one shared list of guesses. */
+export interface FourGame {
+  roomId: string
+  number: number
+  boards: FourBoardState[]
+  /** The player's own words, in order. */
+  guesses: string[]
+  finished: boolean
+  /** Set once the game is finished. */
+  points: number | null
+}
+
+export interface GetFourInput {
+  roomId: string
+  number: number
+}
+
+export interface SubmitFourGuessInput {
+  roomId: string
+  number: number
+  guess: string
+  elapsedMs?: number
+}
+
 export interface GameApi {
   getPuzzle(input: GetPuzzleInput): Promise<Puzzle>
   submitGuess(input: SubmitGuessInput): Promise<GuessResult>
   submitTimeout(input: SubmitTimeoutInput): Promise<GuessResult>
+  getFour(input: GetFourInput): Promise<FourGame>
+  submitFourGuess(input: SubmitFourGuessInput): Promise<FourGame>
 }
 
 /** Stable error codes from `_shared/errors.ts` that the game reacts to by name. */
@@ -138,6 +183,49 @@ function readGuessResult(body: Record<string, unknown>): GuessResult {
     word: finished ? asString(body.answer) : null, // answers-ok: reveal path only
     points: asNumber(body.points),
     elapsedMs: asNumber(body.elapsedMs),
+  }
+}
+
+function unreadableGame(): GameApiError {
+  return new GameApiError('internal', 'The server sent a game we could not read.')
+}
+
+function readFourBoard(value: unknown, index: number): FourBoardState {
+  if (typeof value !== 'object' || value === null) throw unreadableGame()
+  const raw = value as Record<string, unknown>
+  const encoded = Array.isArray(raw.marks)
+    ? raw.marks.filter((row): row is string => typeof row === 'string')
+    : []
+  let marks: MarkRow[]
+  try {
+    marks = decodeMarks(encoded)
+  } catch {
+    throw unreadableGame()
+  }
+  return {
+    board: (index + 1) as FourBoardState['board'],
+    puzzleId: asString(raw.puzzleId) ?? '',
+    marks,
+    guessCount: asNumber(raw.guessCount) ?? 0,
+    solved: raw.solved === true,
+    word: asString(raw.word), // answers-ok: a board's word, sent only once solved or the game is over
+  }
+}
+
+function readFourGame(body: Record<string, unknown>): FourGame {
+  const game = body.game
+  if (typeof game !== 'object' || game === null) throw unreadableGame()
+  const raw = game as Record<string, unknown>
+  if (!Array.isArray(raw.boards) || raw.boards.length !== FOUR_BOARDS) throw unreadableGame()
+  return {
+    roomId: asString(raw.roomId) ?? '',
+    number: asNumber(raw.number) ?? 1,
+    boards: raw.boards.map(readFourBoard),
+    guesses: Array.isArray(raw.guesses)
+      ? raw.guesses.filter((word): word is string => typeof word === 'string')
+      : [],
+    finished: raw.finished === true,
+    points: asNumber(raw.points),
   }
 }
 
@@ -258,6 +346,21 @@ export function createGameApi(config: GameApiConfig): GameApi {
           p_guess: null,
           p_elapsed_ms: input.elapsedMs ?? null,
           p_timed_out: true,
+        }),
+      )
+    },
+    async getFour(input) {
+      return readFourGame(
+        await rpc('get_four', { p_room_id: input.roomId, p_number: input.number }),
+      )
+    },
+    async submitFourGuess(input) {
+      return readFourGame(
+        await rpc('submit_four_guess', {
+          p_room_id: input.roomId,
+          p_number: input.number,
+          p_guess: input.guess,
+          p_elapsed_ms: input.elapsedMs ?? null,
         }),
       )
     },

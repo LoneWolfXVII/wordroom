@@ -1,4 +1,4 @@
-import { MAX_GUESSES, type Mode, type PlayerStats, type StatAttempt } from './types.js'
+import { type Mode, maxGuesses, type PlayerStats, type StatAttempt } from './types.js'
 
 /**
  * Per-player, per-mode stats.
@@ -23,14 +23,16 @@ export function computeStats(attempts: readonly StatAttempt[], mode: Mode): Play
   }
   const rows = [...byNumber.values()].sort((a, b) => a.number - b.number)
 
-  const distribution = new Array<number>(MAX_GUESSES).fill(0)
+  // One bucket per guess the mode allows: six, or nine in Four at once.
+  const buckets = maxGuesses(mode)
+  const distribution = new Array<number>(buckets).fill(0)
   let won = 0
 
   for (const a of rows) {
     if (!a.solved) continue
     won++
     const bucket = a.guessCount - 1
-    if (bucket >= 0 && bucket < MAX_GUESSES) {
+    if (bucket >= 0 && bucket < buckets) {
       distribution[bucket] = (distribution[bucket] ?? 0) + 1
     }
   }

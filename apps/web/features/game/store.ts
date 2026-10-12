@@ -1,5 +1,6 @@
 import {
   DEFAULT_PLAYER_SETTINGS,
+  FOUR,
   isHardModeValid,
   MAX_GUESSES,
   type Mode,
@@ -12,6 +13,7 @@ import { create } from 'zustand'
 import { type GameApi, GameApiError, type GuessResult, getGameApi } from './api'
 import { isKnownWord, preloadGuessList } from './guess-list'
 import { accumulateKeyStates, type KeyStates, mergeKeyState } from './keys'
+import { writeModePreference } from './mode-preference'
 import { prefersReducedMotion, STRUCT_MS, wait } from './motion'
 import { clearPrefetched, prefetchPuzzle, takePrefetched } from './prefetch'
 
@@ -162,7 +164,7 @@ const initialState: GameState = {
   room: null,
   puzzle: null,
   mode: 5,
-  numbers: { 5: 1, 6: 1, 7: 1 },
+  numbers: { 5: 1, 6: 1, 7: 1, 4: 1 },
   hardMode: DEFAULT_PLAYER_SETTINGS.hardMode,
   timerMode: DEFAULT_PLAYER_SETTINGS.timerMode,
   perPuzzleSeconds: DEFAULT_PLAYER_SETTINGS.perPuzzleSeconds,
@@ -301,7 +303,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
           return {
             puzzle,
-            mode: puzzle.mode,
+            // Switching to Four at once while this was in flight wins: the
+            // puzzle is kept for coming back, but the screen stays on Four.
+            mode: state.mode === FOUR ? FOUR : puzzle.mode,
             numbers: { ...state.numbers, [puzzle.mode]: puzzle.number },
             status: 'playing' as GameStatus,
             ...fresh,
@@ -491,6 +495,16 @@ export const useGameStore = create<GameStore>()((set, get) => {
     async setMode(mode) {
       const state = get()
       if (mode === state.mode) return
+      // Four at once has its own store and screen. The switcher lives here, so
+      // the mode does too, but there is no single-board puzzle to load for it,
+      // and the one on hold is what coming back should find.
+      writeModePreference(mode)
+      // No single-board puzzle loaded yet (the visit opened on Four): the route
+      // resumes the player where they were, rather than this opening No. 1.
+      if (mode === FOUR || state.puzzle === null) {
+        set({ mode })
+        return
+      }
       await swapBoard(set, get().loadPuzzle(mode, state.numbers[mode]))
     },
 
