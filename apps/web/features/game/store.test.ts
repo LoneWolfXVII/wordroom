@@ -226,7 +226,6 @@ describe('configure across rooms', () => {
     expect(next.guesses).toEqual([])
     expect(next.current).toBe('')
     expect(next.status).toBe('idle')
-    expect(next.numbers).toEqual({ 5: 1, 6: 1, 7: 1, 4: 1 })
   })
 
   it('keeps play state when reconfigured for the same room', () => {
@@ -370,6 +369,48 @@ describe('switching to Four at once', () => {
     await store().setMode(5)
     expect(store().mode).toBe(5)
     expect(store().puzzle?.mode).toBe(5)
+  })
+
+  it('back from Four, the board in play is still there', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const getPuzzle = vi.spyOn(api, 'getPuzzle')
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api })
+    await store().loadPuzzle(5, 3)
+    await play('slate')
+
+    await store().setMode(4)
+    await store().setMode(5)
+    expect(store().puzzle?.number).toBe(3)
+    expect(store().guesses).toHaveLength(1)
+    expect(getPuzzle).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('switching word length', () => {
+  it('leaves the puzzle to the resume rather than opening No. 1', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const getPuzzle = vi.spyOn(api, 'getPuzzle')
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api })
+    await store().loadPuzzle(5, 3)
+    await play('slate')
+
+    await store().setMode(6)
+    expect(store().mode).toBe(6)
+    expect(store().puzzle).toBeNull()
+    expect(store().guesses).toEqual([])
+    expect(getPuzzle).toHaveBeenCalledTimes(1)
+  })
+
+  it('a load still in flight does not pull the screen back', async () => {
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api: createMockGameApi({ latencyMs: 30 }) })
+    const loading = store().loadPuzzle(5, 1)
+    await store().setMode(6)
+    await loading
+    expect(store().mode).toBe(6)
+    expect(store().puzzle).toBeNull()
   })
 })
 

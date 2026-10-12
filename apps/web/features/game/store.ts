@@ -69,8 +69,6 @@ export interface GameState {
   room: RoomContext | null
   puzzle: Puzzle | null
   mode: Mode
-  /** The puzzle number to play next in each mode. Each mode has its own sequence. */
-  numbers: Record<Mode, number>
 
   /**
    * Settings as they applied when this puzzle started. Snapshotted because the
@@ -131,11 +129,10 @@ export interface GameState {
 }
 
 export interface GameActions {
-  /** Point the store at a room and a starting puzzle number per mode. */
+  /** Point the store at a room. */
   configure(input: {
     room: RoomContext
     mode?: Mode
-    numbers?: Partial<Record<Mode, number>>
     settings?: PlayerSettings
     api?: GameApi
   }): void
@@ -170,7 +167,6 @@ const initialState: GameState = {
   room: null,
   puzzle: null,
   mode: 5,
-  numbers: { 5: 1, 6: 1, 7: 1, 4: 1 },
   hardMode: DEFAULT_PLAYER_SETTINGS.hardMode,
   timerMode: DEFAULT_PLAYER_SETTINGS.timerMode,
   perPuzzleSeconds: DEFAULT_PLAYER_SETTINGS.perPuzzleSeconds,
@@ -260,7 +256,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
   return {
     ...initialState,
 
-    configure({ room, mode, numbers, settings, api: injected }) {
+    configure({ room, mode, settings, api: injected }) {
       if (injected !== undefined) api = injected
       // Another room's prefetches are not this room's. The keys carry the room
       // id so a stale entry can never be served, but there is no reason to keep
@@ -279,9 +275,6 @@ export const useGameStore = create<GameStore>()((set, get) => {
           ...carried,
           room,
           mode: mode ?? carried.mode,
-          numbers: switchingRooms
-            ? { ...initialState.numbers, ...numbers }
-            : { ...state.numbers, ...numbers },
           pendingSettings: settings ?? carried.pendingSettings,
         }
       })
@@ -303,6 +296,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
         const request = { roomId: room.id, mode, number }
         const puzzle = await (takePrefetched(request) ?? transport().getPuzzle(request))
         set((state) => {
+          // The player switched to another length while this was in flight:
+          // that switch's own load is the one to show.
+          if (state.mode !== mode && state.mode !== FOUR) return state
           const fresh = freshPuzzleState(Date.now(), state.pendingSettings)
           // A restored attempt only replaces the empty board; everything else a
           // new puzzle wipes still gets wiped. Guesses beyond the limit are
@@ -314,7 +310,6 @@ export const useGameStore = create<GameStore>()((set, get) => {
             // Switching to Four at once while this was in flight wins: the
             // puzzle is kept for coming back, but the screen stays on Four.
             mode: state.mode === FOUR ? FOUR : puzzle.mode,
-            numbers: { ...state.numbers, [puzzle.mode]: puzzle.number },
             status: 'playing' as GameStatus,
             ...fresh,
             ...(restore
@@ -514,13 +509,21 @@ export const useGameStore = create<GameStore>()((set, get) => {
       // the mode does too, but there is no single-board puzzle to load for it,
       // and the one on hold is what coming back should find.
       writeModePreference(mode)
-      // No single-board puzzle loaded yet (the visit opened on Four): the route
-      // resumes the player where they were, rather than this opening No. 1.
-      if (mode === FOUR || state.puzzle === null) {
+      // Four, or back from Four to the board on hold: nothing to load.
+      if (mode === FOUR || state.puzzle === null || state.puzzle.mode === mode) {
         set({ mode })
         return
       }
-      await swapBoard(set, get().loadPuzzle(mode, state.numbers[mode]))
+      // Another length: clear the board and let the route resume the player
+      // where they are in it, with their board and the Wait-mode check, as a
+      // reload would. Guessing a number here opened No. 1 for a mode not yet
+      // seen this visit.
+      set({
+        mode,
+        puzzle: null,
+        status: 'idle',
+        ...freshPuzzleState(Date.now(), state.pendingSettings),
+      })
     },
 
     applySettings(settings) {
