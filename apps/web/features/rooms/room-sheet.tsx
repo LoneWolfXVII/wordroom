@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { Room } from '@wordroom/shared'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Button, Help, Icon, Sheet, toast } from '@/components/ui'
 import { CopyIcon, ForwardIcon, HomeIcon, ShareIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/cn'
@@ -32,6 +32,7 @@ export function RoomSheet({
   onOpenChange,
   puzzleId = null,
   onLeft,
+  settings,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -43,6 +44,8 @@ export function RoomSheet({
    * it here — otherwise the next room opens on the last room's puzzle.
    */
   onLeft?: () => void
+  /** Room-wide settings from the game route, under the member list. */
+  settings?: ReactNode
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -124,6 +127,7 @@ export function RoomSheet({
         }
       >
         <MemberList members={list} room={room} meId={player.id} statuses={statuses.data ?? {}} />
+        {settings}
 
         <div className="mt-[18px] grid grid-cols-2 gap-2.5">
           <Button onClick={share}>

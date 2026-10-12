@@ -103,6 +103,10 @@ jobs:
         run: >
           psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
           -v ON_ERROR_STOP=1 -qtA -f supabase/tests/four.test.sql
+      - name: Wait mode
+        run: >
+          psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          -v ON_ERROR_STOP=1 -qtA -f supabase/tests/wait_mode.test.sql
 
   seed:
     name: word bank seed

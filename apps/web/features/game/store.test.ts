@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { GameApiError } from './api'
 import { createMockGameApi } from './dev/mock-api'
 import { loadGuessList } from './guess-list'
 import { useGameStore } from './store'
@@ -369,5 +370,63 @@ describe('switching to Four at once', () => {
     await store().setMode(5)
     expect(store().mode).toBe(5)
     expect(store().puzzle?.mode).toBe(5)
+  })
+})
+
+describe('a refused next puzzle', () => {
+  it('keeps the finished board and its buttons', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const real = api.getPuzzle.bind(api)
+    vi.spyOn(api, 'getPuzzle').mockImplementation(async (input) => {
+      if (input.number === 1) return real(input)
+      throw new GameApiError('round_not_over', 'The room is still on No. 1.')
+    })
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api })
+    await store().loadPuzzle(5, 1)
+    await play(WORD)
+    expect(store().status).toBe('solved')
+
+    await store().nextPuzzle()
+    expect(store().status).toBe('solved')
+    expect(store().puzzle?.number).toBe(1)
+    expect(store().notice?.message).toBe('The room is still on No. 1.')
+  })
+
+  it('stays on Four if the player switched to it while the load was failing', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const real = api.getPuzzle.bind(api)
+    let refuse: (error: Error) => void = () => {}
+    vi.spyOn(api, 'getPuzzle').mockImplementation(async (input) => {
+      if (input.number === 1) return real(input)
+      return new Promise((_, reject) => {
+        refuse = reject
+      })
+    })
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api })
+    await store().loadPuzzle(5, 1)
+    useGameStore.setState({ prefetchNext: false })
+    await play(WORD)
+
+    const next = store().nextPuzzle()
+    await store().setMode(4)
+    refuse(new GameApiError('round_not_over', 'The room is still on No. 1.'))
+    await next
+    expect(store().mode).toBe(4)
+  })
+})
+
+describe('prefetching the next puzzle', () => {
+  it('is skipped when the room asks for it off (Wait mode)', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const getPuzzle = vi.spyOn(api, 'getPuzzle')
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api })
+    useGameStore.setState({ prefetchNext: false })
+    await store().loadPuzzle(5, 1)
+    await play(WORD)
+    expect(store().status).toBe('solved')
+    expect(getPuzzle).toHaveBeenCalledTimes(1)
   })
 })
