@@ -176,6 +176,41 @@ end;
 $function$;
 
 -- ---------------------------------------------------------------------------
+-- guess_context serves the older `submit-guess` Edge Function. It must not hand
+-- that function a Four board: its timeout path would close the board and send
+-- back its word, outside the nine-guess game. Otherwise unchanged.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.guess_context(p_puzzle_id uuid, p_user_id uuid, p_guess text DEFAULT NULL::text)
+ RETURNS TABLE(puzzle jsonb, player jsonb, attempt jsonb, guess_is_word boolean)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  select
+    to_jsonb(pz) as puzzle,
+    to_jsonb(pl) as player,
+    case when a.id is null then null else to_jsonb(a) end as attempt,
+    -- Null for a timeout, which carries no guess and needs no dictionary.
+    case
+      when p_guess is null then null
+      else exists (
+        select 1 from public.guess_bank g
+         where g.len = pz.mode and g.word = lower(btrim(p_guess))
+      )
+    end as guess_is_word
+  from public.puzzles pz
+  join public.players pl
+    on pl.room_id = pz.room_id
+   and pl.auth_user_id = p_user_id
+  left join public.attempts a
+    on a.puzzle_id = pz.id
+   and a.player_id = pl.id
+  where pz.id = p_puzzle_id
+    -- Four at once boards are played only through `submit_four_guess`.
+    and pz.mode <> 4;
+$function$;
+
+-- ---------------------------------------------------------------------------
 -- four_game_body — one player's view of one Four game.
 --
 -- Internal: called only from the two SECURITY DEFINER functions below, after
@@ -200,14 +235,19 @@ as $$
            coalesce(a.marks, '{}')          as marks,
            coalesce(a.guesses, '{}')        as guesses,
            coalesce(a.guess_count, 0)       as guess_count,
-           coalesce(a.solved, false)        as solved
+           coalesce(a.solved, false)        as solved,
+           a.finished_at
       from public.puzzles pz
       left join public.attempts a on a.puzzle_id = pz.id and a.player_id = p_player_id
      where pz.room_id = p_room_id and pz.mode = 4
        and pz.number between 4 * (p_game - 1) + 1 and 4 * p_game
   ),
   state as (
-    select bool_and(solved) or max(guess_count) >= 9 as finished from boards
+    -- Over when every board is solved, the ninth guess is in, or a board was
+    -- closed unsolved some other way: a closed board is never reopened.
+    select bool_and(solved) or max(guess_count) >= 9
+           or bool_or(finished_at is not null and not solved) as finished
+      from boards
   )
   select jsonb_build_object(
     'roomId',   p_room_id,
@@ -415,7 +455,8 @@ begin
       hashtextextended(v_player.id::text || ':four:' || p_number, 0));
 
     select coalesce(max(a.guess_count), 0),
-           coalesce(bool_and(coalesce(a.solved, false)), false),
+           coalesce(bool_and(coalesce(a.solved, false)), false)
+             or coalesce(bool_or(a.finished_at is not null and not a.solved), false),
            max(a.elapsed_ms)
       into v_used, v_done, v_prev
       from public.puzzles pz
@@ -471,7 +512,8 @@ begin
             solved      = excluded.solved,
             guess_count = excluded.guess_count,
             elapsed_ms  = excluded.elapsed_ms,
-            finished_at = excluded.finished_at;
+            -- Never reopen a closed board.
+            finished_at = coalesce(public.attempts.finished_at, excluded.finished_at);
 
       v_by_board := v_by_board || jsonb_build_object(r.board::text, array_to_string(v_marks, ','));
     end loop;
@@ -535,7 +577,9 @@ create or replace view public.four_games
    group by pl.room_id, pl.id, pl.name, (pz.number - 1) / 4 + 1
   having count(*) = 4 and count(*) filter (where a.finished_at is null) = 0;
 
-revoke all on public.four_games from public, anon;
+-- Name every role: Supabase's default privileges grant all to anon and
+-- authenticated directly, so revoking from public alone leaves them in place.
+revoke all on public.four_games from public, anon, authenticated;
 grant select on public.four_games to authenticated;
 
 comment on view public.four_games is

@@ -41,6 +41,8 @@ export interface FourActions {
   deleteLetter(): void
   submit(): Promise<void>
   next(): Promise<void>
+  /** Try the last failed load again. */
+  retry(): Promise<void>
   reset(): void
 }
 
@@ -93,9 +95,11 @@ export const useFourStore = create<FourStore>()((set, get) => {
     },
 
     async load(number) {
-      const { roomId } = get()
+      const { roomId, game: before } = get()
       if (api === null || roomId === null) return
-      set({ status: 'loading', number, current: '' })
+      // `number` only moves once a game lands, unless there is none yet: then
+      // it is what `retry` asks for again.
+      set({ status: 'loading', current: '', ...(before === null ? { number } : {}) })
       try {
         const game = await api.getFour({ roomId, number })
         set({
@@ -105,9 +109,16 @@ export const useFourStore = create<FourStore>()((set, get) => {
           startedAt: game.finished ? null : Date.now(),
         })
       } catch (error) {
-        set({ status: 'error' })
+        // A failed "next" leaves the finished game on screen, with its Next
+        // button, rather than a dead keyboard. With nothing to fall back on the
+        // screen offers a retry.
+        set({ status: before === null ? 'error' : statusOf(before) })
         notify(messageFor(error))
       }
+    },
+
+    async retry() {
+      await get().load(get().number)
     },
 
     typeLetter(letter) {

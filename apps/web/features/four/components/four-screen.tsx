@@ -61,6 +61,7 @@ export function FourScreen({
   const deleteLetter = useFourStore((state) => state.deleteLetter)
   const submit = useFourStore((state) => state.submit)
   const next = useFourStore((state) => state.next)
+  const retry = useFourStore((state) => state.retry)
 
   useEffect(() => {
     if (notice !== null) toast(notice.message)
@@ -103,6 +104,7 @@ export function FourScreen({
         className="relative grid min-h-0 flex-1 place-items-center py-2 [container-type:size]"
         style={BOARD_METRICS}
       >
+        {status === 'error' ? <Button onClick={() => void retry()}>Try again</Button> : null}
         {game === null ? null : (
           <div className="grid grid-cols-2 gap-[10px]">
             {game.boards.map((board) => (

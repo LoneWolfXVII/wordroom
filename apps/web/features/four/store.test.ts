@@ -123,6 +123,39 @@ describe('Four store', () => {
     expect(useFourStore.getState().status).toBe('over')
   })
 
+  it('keeps the finished game on screen when the next one fails to load', async () => {
+    const all = game().boards.map((b) => ({ ...b, solved: true, guessCount: 4, word: 'crane' }))
+    let calls = 0
+    const api = fakeApi({
+      getFour: vi.fn(async () => {
+        calls += 1
+        if (calls === 1) return game({ boards: all, finished: true, points: 24 })
+        throw new GameApiError('offline', 'No connection. Reconnect to play.')
+      }),
+    })
+    await ready(api)
+    await useFourStore.getState().next()
+    // Still on the finished game, so "Next puzzle" is there to try again.
+    expect(useFourStore.getState().status).toBe('won')
+    expect(useFourStore.getState().game?.number).toBe(1)
+    expect(useFourStore.getState().notice?.message).toBe('No connection. Reconnect to play.')
+  })
+
+  it('reports an error when there is no game to fall back on, and retries', async () => {
+    let fail = true
+    const api = fakeApi({
+      getFour: vi.fn(async ({ number }) => {
+        if (fail) throw new GameApiError('internal', 'Something went wrong. Try again.')
+        return game({ number })
+      }),
+    })
+    await ready(api)
+    expect(useFourStore.getState().status).toBe('error')
+    fail = false
+    await useFourStore.getState().retry()
+    expect(useFourStore.getState().status).toBe('playing')
+  })
+
   it('moves on to the next game', async () => {
     const api = fakeApi()
     await ready(api)

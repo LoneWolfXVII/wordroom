@@ -117,6 +117,34 @@ do $$ begin
   assert public.get_four('10000000-0000-0000-0000-0000000000f1', 4) ? 'error', 'no jumping';
 end $$;
 
+-- A board closed unsolved by any other path (the old submit-guess Edge
+-- Function's timeout) ends the game: it cannot be reopened and replayed.
+reset role;
+insert into public.attempts (player_id, puzzle_id, solved, guess_count, finished_at)
+select '30000000-0000-0000-0000-0000000000f1', id, false, 0, now()
+  from public.puzzles
+ where room_id = '10000000-0000-0000-0000-0000000000f1' and mode = 4 and number = 7;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000f1"}';
+do $$ begin
+  assert public.submit_four_guess('10000000-0000-0000-0000-0000000000f1', 2, (select word from filler))
+    -> 'error' ->> 'code' = 'attempt_finished', 'a board closed unsolved ends the game';
+  assert (public.get_four('10000000-0000-0000-0000-0000000000f1', 2) -> 'game' ->> 'finished')::boolean,
+    'and the game reads as finished';
+end $$;
+
+-- guess_context, the old Edge Function's way in, does not serve a Four board.
+reset role;
+do $$ begin
+  assert not exists (
+    select 1 from public.guess_context(
+      (select id from public.puzzles
+        where room_id = '10000000-0000-0000-0000-0000000000f1' and mode = 4 and number = 5),
+      '00000000-0000-0000-0000-0000000000f1')),
+    'guess_context refuses a Four board';
+end $$;
+set local role authenticated;
+
 -- A non-member gets nothing.
 set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000f2"}';
 do $$ begin
