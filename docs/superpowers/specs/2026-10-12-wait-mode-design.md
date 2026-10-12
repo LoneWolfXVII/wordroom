@@ -1,6 +1,6 @@
 # Wait mode
 
-Date: 2026-10-12. Status: design approved in conversation; awaiting spec review.
+Date: 2026-10-12. Status: implemented (see Implementation notes).
 
 ## Why
 
@@ -72,3 +72,20 @@ together, in rounds.
 
 Depends on nothing in the Four spec, but if both ship, `get_four` needs the
 same gate. A migration; apply before merge.
+
+## Implementation notes
+
+Where the build differs from the design above, and why:
+
+- **Polling, not realtime.** The waiting screen asks `wait_status` every 4s
+  while a player is looking at a finished puzzle (or the room sheet).
+  `wait_status` also ends a round that is over, so waiting players move on
+  without anyone tapping. Neither round table is readable by clients or in the
+  realtime publication.
+- **Names, not live grids.** The waiting note names who the round is waiting
+  for; their colour grids are on the leaderboard, as before.
+- **Late arrival.** A request for a number at or below the last ended round is
+  always allowed (catching up). The first request past it opens the next round.
+- **Arriving while held.** A player who reloads, or opens the room, while the
+  round they would join next has not started yet sees the waiting note in place
+  of the keyboard, and their puzzle opens when the round ends.

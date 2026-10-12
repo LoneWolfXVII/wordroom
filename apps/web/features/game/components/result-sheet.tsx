@@ -47,6 +47,8 @@ export interface ResultSheetProps {
   loadingNext?: boolean
   /** Native share sheet rather than the clipboard — right on a phone, wrong on a desktop. */
   preferNativeShare?: boolean
+  /** Set while the room is still on this puzzle (Wait mode): Next is held and this says why. */
+  waiting?: ReactNode
 }
 
 /**
@@ -71,6 +73,7 @@ export function ResultSheet({
   onNext,
   loadingNext = false,
   preferNativeShare = false,
+  waiting,
 }: ResultSheetProps) {
   const [confirmingLetters, setConfirmingLetters] = useState(false)
 
@@ -156,11 +159,17 @@ export function ResultSheet({
                 <Icon icon={ShareIcon} size={18} />
                 Share
               </Button>
-              <Button variant="primary" loading={loadingNext} onClick={onNext}>
+              <Button
+                variant="primary"
+                loading={loadingNext}
+                disabled={waiting !== undefined}
+                onClick={onNext}
+              >
                 <Icon icon={ForwardIcon} size={18} />
                 Next puzzle
               </Button>
             </div>
+            {waiting}
             {/*
              * The icon is the half of the label that matters. This sits under
              * a "Share" that does not spoil anything, and the only difference

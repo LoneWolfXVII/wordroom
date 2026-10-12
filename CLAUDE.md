@@ -220,8 +220,10 @@ No cartoon illustration, no confetti, no gradients.
 - **An invalid word is not a guess.** Shake and toast; the row is not consumed.
 - **Hard mode** rejects a guess that moves a revealed green or drops a revealed
   yellow, with a specific message. Letters known to be absent stay legal.
-- **No one waits.** Each player advances to the next puzzle independently; the
-  board compares per puzzle number.
+- **No one waits in Speedrun**, the default pace. Each player advances to the
+  next puzzle independently; the board compares per puzzle number. A room the
+  host sets to **Wait** plays in rounds: `round_gate` holds puzzle N+1 until
+  everyone who opened N has finished it, gone idle ten minutes, or been skipped.
 
 ---
 

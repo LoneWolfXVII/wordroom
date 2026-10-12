@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { GameApiError } from './api'
 import { createMockGameApi } from './dev/mock-api'
 import { loadGuessList } from './guess-list'
 import { useGameStore } from './store'
@@ -369,5 +370,26 @@ describe('switching to Four at once', () => {
     await store().setMode(5)
     expect(store().mode).toBe(5)
     expect(store().puzzle?.mode).toBe(5)
+  })
+})
+
+describe('a refused next puzzle', () => {
+  it('keeps the finished board and its buttons', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const real = api.getPuzzle.bind(api)
+    vi.spyOn(api, 'getPuzzle').mockImplementation(async (input) => {
+      if (input.number === 1) return real(input)
+      throw new GameApiError('round_not_over', 'The room is still on No. 1.')
+    })
+    store().reset()
+    store().configure({ room: ROOM, mode: 5, api })
+    await store().loadPuzzle(5, 1)
+    await play(WORD)
+    expect(store().status).toBe('solved')
+
+    await store().nextPuzzle()
+    expect(store().status).toBe('solved')
+    expect(store().puzzle?.number).toBe(1)
+    expect(store().notice?.message).toBe('The room is still on No. 1.')
   })
 })

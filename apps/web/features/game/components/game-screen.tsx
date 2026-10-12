@@ -40,6 +40,8 @@ export interface GameScreenProps {
   nudge?: ReactNode
   /** Show the word-length switcher. Off only in harnesses that pin one mode. */
   showModes?: boolean
+  /** Set while the room is still on this puzzle (Wait mode): Next is held and this says why. */
+  waiting?: ReactNode
 }
 
 /**
@@ -58,6 +60,7 @@ export function GameScreen({
   rank = null,
   nudge,
   showModes = true,
+  waiting,
 }: GameScreenProps) {
   const reduced = useReducedMotion() ?? false
   const nativeShare = useMediaQuery(COARSE_POINTER)
@@ -195,11 +198,12 @@ export function GameScreen({
        * other.
        */}
       {showEndActions ? (
-        <div className="flex min-h-[calc(var(--key-height)*3+28px)] flex-none items-center pb-2.5">
+        <div className="flex min-h-[calc(var(--key-height)*3+28px)] flex-none flex-col justify-center pb-2.5">
           <div className="grid w-full grid-cols-2 gap-2.5">
             <Button
               variant="primary"
               loading={status === 'loading'}
+              disabled={waiting !== undefined}
               onClick={() => void nextPuzzle()}
             >
               <Icon icon={ForwardIcon} size={18} />
@@ -210,6 +214,12 @@ export function GameScreen({
               View result
             </Button>
           </div>
+          {waiting}
+        </div>
+      ) : puzzle === null && waiting !== undefined ? (
+        // Arrived (or reloaded) while the room is still on the last puzzle.
+        <div className="flex min-h-[calc(var(--key-height)*3+28px)] flex-none flex-col justify-center pb-2.5">
+          {waiting}
         </div>
       ) : (
         <Keyboard keyStates={keyStates} onKey={onKey} disabled={!accepting} />
@@ -232,6 +242,7 @@ export function GameScreen({
         onNext={() => void nextPuzzle()}
         loadingNext={status === 'loading'}
         preferNativeShare={nativeShare}
+        waiting={waiting}
       />
     </Screen>
   )

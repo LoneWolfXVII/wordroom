@@ -18,6 +18,8 @@ export interface FourResultSheetProps {
   onNext: () => void
   loadingNext?: boolean
   preferNativeShare?: boolean
+  /** Set while the room is still on this puzzle (Wait mode): Next is held and this says why. */
+  waiting?: ReactNode
 }
 
 /** Per board, the guess that solved it, or null. */
@@ -47,6 +49,7 @@ export function FourResultSheet({
   onNext,
   loadingNext = false,
   preferNativeShare = false,
+  waiting,
 }: FourResultSheetProps) {
   const solved = solvedAt(game)
   const boardsSolved = solved.filter((n) => n !== null).length
@@ -92,11 +95,17 @@ export function FourResultSheet({
             <Icon icon={ShareIcon} size={18} />
             Share
           </Button>
-          <Button variant="primary" loading={loadingNext} onClick={onNext}>
+          <Button
+            variant="primary"
+            loading={loadingNext}
+            disabled={waiting !== undefined}
+            onClick={onNext}
+          >
             <Icon icon={ForwardIcon} size={18} />
             Next puzzle
           </Button>
         </div>
+        {waiting}
 
         {nudge}
       </div>

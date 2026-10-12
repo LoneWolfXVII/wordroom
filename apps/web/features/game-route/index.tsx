@@ -19,7 +19,7 @@
  * than importing across feature folders.
  */
 
-import { FOUR } from '@wordroom/shared'
+import { FOUR, type Mode } from '@wordroom/shared'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Icon, Screen, TileArt } from '@/components/ui'
 import { HomeIcon } from '@/components/ui/icons'
@@ -35,6 +35,14 @@ import {
   useSettingsConnection,
   useSettingsStore,
 } from '@/features/settings'
+import {
+  fetchWaitStatus,
+  isHeld,
+  PaceSetting,
+  skipRound,
+  useWaitStatus,
+  WaitingNote,
+} from '@/features/wait'
 import { getBrowserClient, isSupabaseConfigured, supabaseEnv } from '@/lib/supabase'
 import { AccountSettingRow } from './account-row'
 import { resumePuzzleNumber } from './resume'
@@ -125,6 +133,12 @@ export function GameRoute() {
   const fourStatus = useFourStore((s) => s.status)
   const [fourResultOpen, setFourResultOpen] = useState(false)
 
+  // Wait mode: the number this player arrived at, while the room is still
+  // finishing the one before it. Loaded as soon as the round ends.
+  // Kept with its mode, so switching games drops it.
+  const [heldAt, setHeldAt] = useState<{ mode: Mode; number: number } | null>(null)
+  const held = heldAt?.mode === mode ? heldAt.number : null
+
   useEffect(() => {
     if (!seat || !api || mode !== FOUR) return
     configureFour({ roomId: seat.room.id, api })
@@ -133,7 +147,12 @@ export function GameRoute() {
     let cancelled = false
     void (async () => {
       const { number } = await resumePuzzleNumber(getBrowserClient(), seat.room.id, FOUR)
-      if (!cancelled) await loadFour(Math.ceil(number / 4))
+      const game = Math.ceil(number / 4)
+      if (await arrivesEarly(seat.room.id, FOUR, game)) {
+        if (!cancelled) setHeldAt({ mode: FOUR, number: game })
+        return
+      }
+      if (!cancelled) await loadFour(game)
     })()
     return () => {
       cancelled = true
@@ -159,6 +178,10 @@ export function GameRoute() {
     let cancelled = false
     void (async () => {
       const { number, restore } = await resumePuzzleNumber(getBrowserClient(), seat.room.id, mode)
+      if (!restore && (await arrivesEarly(seat.room.id, mode, number))) {
+        if (!cancelled) setHeldAt({ mode, number })
+        return
+      }
       if (!cancelled) await loadPuzzle(mode, number, restore)
     })()
 
@@ -166,6 +189,40 @@ export function GameRoute() {
       cancelled = true
     }
   }, [seat, env, settingsReady, puzzle, mode, loadPuzzle])
+
+  const client = useMemo(() => (env ? getBrowserClient() : null), [env])
+  const onNumber = mode === FOUR ? (fourGame?.number ?? null) : (puzzle?.number ?? null)
+  const finished =
+    mode === FOUR
+      ? fourStatus === 'won' || fourStatus === 'over'
+      : status === 'solved' || status === 'failed'
+  const wait = useWaitStatus(
+    client,
+    seat?.room.id ?? null,
+    mode,
+    Boolean(seat) && (finished || held !== null || roomOpen),
+  )
+  const nextNumber = held ?? (finished && onNumber !== null ? onNumber + 1 : null)
+  const holding = nextNumber !== null && isHeld(wait.status, nextNumber)
+
+  // The round ended: open what this player arrived at.
+  useEffect(() => {
+    if (held === null || wait.status === null || isHeld(wait.status, held)) return
+    setHeldAt(null)
+    if (mode === FOUR) void loadFour(held)
+    else void loadPuzzle(mode, held)
+  }, [held, wait.status, mode, loadFour, loadPuzzle])
+
+  const waiting =
+    holding && wait.status && client && seat ? (
+      <WaitingNote
+        status={wait.status}
+        onSkip={async () => {
+          await skipRound(client, seat.room.id, mode)
+          await wait.refresh()
+        }}
+      />
+    ) : undefined
 
   const { delta } = useRankDelta({
     source: leaderboardSource,
@@ -215,6 +272,7 @@ export function GameRoute() {
           onOpenSettings={() => setSettingsOpen(true)}
           resultOpen={fourResultOpen}
           onOpenResult={() => setFourResultOpen(true)}
+          waiting={waiting}
           result={
             fourGame === null ? null : (
               <FourResultSheet
@@ -228,6 +286,7 @@ export function GameRoute() {
                   void nextFour()
                 }}
                 loadingNext={fourStatus === 'loading'}
+                waiting={waiting}
               />
             )
           }
@@ -239,6 +298,7 @@ export function GameRoute() {
           onOpenSettings={() => setSettingsOpen(true)}
           rank={delta ? { before: delta.before, after: delta.after } : null}
           nudge={<SaveProgressNudge />}
+          waiting={waiting}
         />
       )}
 
@@ -257,6 +317,16 @@ export function GameRoute() {
           reset()
           resetFour()
         }}
+        settings={
+          client ? (
+            <PaceSetting
+              client={client}
+              roomId={seat.room.id}
+              status={wait.status}
+              onChanged={() => void wait.refresh()}
+            />
+          ) : null
+        }
       />
 
       <LeaderboardSheet
@@ -281,4 +351,14 @@ export function GameRoute() {
       />
     </>
   )
+}
+
+/** Whether the room, in Wait mode, has not reached this number yet. */
+async function arrivesEarly(roomId: string, mode: Mode, next: number): Promise<boolean> {
+  try {
+    return isHeld(await fetchWaitStatus(getBrowserClient(), roomId, mode), next)
+  } catch {
+    // Not worth blocking the game for: the server gate still decides.
+    return false
+  }
 }

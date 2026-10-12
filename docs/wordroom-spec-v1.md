@@ -56,7 +56,7 @@ NYT Wordle allows one puzzle per day and no way to play with a specific group of
 **Puzzle flow**
 - 5-letter mode, 6 guesses.
 - Header shows `No. <n>` — the room's puzzle counter, starting at 1.
-- "Next puzzle" available immediately after solve/fail. Each player advances independently; the leaderboard compares per puzzle number.
+- "Next puzzle" available immediately after solve/fail. Each player advances independently; the leaderboard compares per puzzle number. (In a room set to Wait, the next puzzle opens once the round ends — see `superpowers/specs/2026-10-12-wait-mode-design.md`.)
 - Physical keyboard input on desktop; on-screen keyboard on all devices. No hidden `<input>`.
 - Answer is never sent to the client until the puzzle is solved, failed, or revealed. Guesses are validated server-side.
 - Guess list (valid words) is broad; answer list is curated: no plurals, proper nouns, or obscure words. Difficulty tiers reserved for P1.

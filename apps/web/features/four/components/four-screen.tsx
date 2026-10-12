@@ -21,6 +21,8 @@ export interface FourScreenProps {
   result?: ReactNode
   resultOpen: boolean
   onOpenResult: () => void
+  /** Set while the room is still on this puzzle (Wait mode): Next is held and this says why. */
+  waiting?: ReactNode
 }
 
 /*
@@ -50,6 +52,7 @@ export function FourScreen({
   result,
   resultOpen,
   onOpenResult,
+  waiting,
 }: FourScreenProps) {
   const game = useFourStore((state) => state.game)
   const current = useFourStore((state) => state.current)
@@ -125,9 +128,9 @@ export function FourScreen({
       </main>
 
       {finished && !resultOpen ? (
-        <div className="flex min-h-[calc(var(--key-height)*3+28px)] flex-none items-center pb-2.5">
+        <div className="flex min-h-[calc(var(--key-height)*3+28px)] flex-none flex-col justify-center pb-2.5">
           <div className="grid w-full grid-cols-2 gap-2.5">
-            <Button variant="primary" onClick={() => void next()}>
+            <Button variant="primary" disabled={waiting !== undefined} onClick={() => void next()}>
               <Icon icon={ForwardIcon} size={18} />
               Next puzzle
             </Button>
@@ -136,6 +139,7 @@ export function FourScreen({
               View result
             </Button>
           </div>
+          {waiting}
         </div>
       ) : (
         <Keyboard

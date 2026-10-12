@@ -284,6 +284,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       const room = get().room
       if (room === null) return
 
+      const before = { status: get().status, mode: get().mode }
       set({ status: 'loading', mode })
       preloadGuessList(mode)
 
@@ -319,7 +320,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
           }
         })
       } catch (error) {
-        set({ status: 'idle' })
+        // A failed load leaves the puzzle on screen as it was — a refused
+        // "Next" keeps its finished board and buttons rather than a dead one.
+        set(get().puzzle === null ? { status: 'idle' } : before)
         get().notify(messageFor(error))
       }
     },
