@@ -125,5 +125,14 @@ export function createMockGameApi(options: MockApiOptions = {}): GameApi {
       }
       return result(puzzleId, attempt, null)
     },
+
+    // Four at once is not played through this single-board double.
+    async getFour() {
+      throw new GameApiError('bad_request', 'Four at once is not available in the dev harness.')
+    },
+
+    async submitFourGuess() {
+      throw new GameApiError('bad_request', 'Four at once is not available in the dev harness.')
+    },
   }
 }
