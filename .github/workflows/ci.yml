@@ -99,6 +99,11 @@ jobs:
           psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
           -v ON_ERROR_STOP=1 -qtA -f supabase/tests/seat_handoff.test.sql
 
+      - name: Four at once
+        run: >
+          psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          -v ON_ERROR_STOP=1 -qtA -f supabase/tests/four.test.sql
+
   seed:
     name: word bank seed
     runs-on: ubuntu-latest
