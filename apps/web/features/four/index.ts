@@ -1,3 +1,4 @@
+export { FourResultSheet, type FourResultSheetProps } from './components/four-result-sheet'
 export { FourScreen, type FourScreenProps } from './components/four-screen'
 export {
   type FourState,

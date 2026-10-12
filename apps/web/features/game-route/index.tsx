@@ -23,7 +23,7 @@ import { FOUR } from '@wordroom/shared'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Icon, Screen, TileArt } from '@/components/ui'
 import { HomeIcon } from '@/components/ui/icons'
-import { FourScreen, useFourStore } from '@/features/four'
+import { FourResultSheet, FourScreen, useFourStore } from '@/features/four'
 import { createGameApi, GameScreen, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
 import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
@@ -116,6 +116,7 @@ export function GameRoute() {
   // finds belongs to game ceil(n / 4).
   const configureFour = useFourStore((s) => s.configure)
   const loadFour = useFourStore((s) => s.load)
+  const nextFour = useFourStore((s) => s.next)
   const resetFour = useFourStore((s) => s.reset)
   const fourGame = useFourStore((s) => s.game)
   const fourStatus = useFourStore((s) => s.status)
@@ -211,7 +212,22 @@ export function GameRoute() {
           onOpenSettings={() => setSettingsOpen(true)}
           resultOpen={fourResultOpen}
           onOpenResult={() => setFourResultOpen(true)}
-          result={null}
+          result={
+            fourGame === null ? null : (
+              <FourResultSheet
+                open={fourResultOpen}
+                onOpenChange={setFourResultOpen}
+                game={fourGame}
+                roomCode={seat.room.code}
+                nudge={<SaveProgressNudge />}
+                onNext={() => {
+                  setFourResultOpen(false)
+                  void nextFour()
+                }}
+                loadingNext={fourStatus === 'loading'}
+              />
+            )
+          }
         />
       ) : (
         <GameScreen
