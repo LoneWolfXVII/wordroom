@@ -1,0 +1,35 @@
+name: keep-alive
+
+# Supabase's free plan pauses a project after about a week without activity,
+# and a paused project's hostname stops resolving: the app goes down with
+# nothing but ERR_NAME_NOT_RESOLVED in the console. This asks Postgres one
+# question every three days so that never happens.
+#
+# It doubles as a monitor. A paused or deleted project fails this job, and a
+# failed scheduled run emails the repo owner.
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      # The anon key may not read `guess_bank`, and that is the point: the
+      # refusal (42501) comes from Postgres itself, so getting it proves the
+      # database answered, without granting anything or writing anything.
+      - name: Ask the database a question
+        env:
+          URL: ${{ secrets.PROD_SUPABASE_URL }}
+          KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY }}
+        run: |
+          body=$(curl -sS --max-time 30 "$URL/rest/v1/guess_bank?select=word&limit=1" \
+            -H "apikey: $KEY")
+          echo "$body"
+          case "$body" in
+            *'"code":"42501"'*|'['*) echo "Database answered." ;;
+            *) echo "::error::Supabase did not answer. Is the project paused?"; exit 1 ;;
+          esac
