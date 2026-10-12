@@ -333,6 +333,16 @@ describe('the end of an attempt', () => {
 })
 
 describe('switching to Four at once', () => {
+  it('opened on Four, picking 5 leaves the puzzle to the resume rather than No. 1', async () => {
+    const api = createMockGameApi({ latencyMs: 0 })
+    const getPuzzle = vi.spyOn(api, 'getPuzzle')
+    store().reset()
+    store().configure({ room: ROOM, mode: 4, api })
+    await store().setMode(5)
+    expect(store().mode).toBe(5)
+    expect(getPuzzle).not.toHaveBeenCalled()
+  })
+
   it('stays on Four when picked while the first puzzle is still loading', async () => {
     store().reset()
     store().configure({ room: ROOM, mode: 5, api: createMockGameApi({ latencyMs: 30 }) })

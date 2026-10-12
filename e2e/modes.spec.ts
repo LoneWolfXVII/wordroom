@@ -44,3 +44,21 @@ test('7 letters gives a 7-wide board that fits the screen', async ({ page }) => 
   await page.getByRole('button', { name: 'Leaderboard' }).click()
   await expect(page.getByRole('dialog').getByText('7 letters')).toBeVisible()
 })
+
+/**
+ * Clicking a length leaves focus on the switcher, and a focused button takes
+ * Enter for itself. So a player on a computer picked 7, typed a word, pressed
+ * Enter, and nothing happened.
+ */
+test('Enter submits after picking a length with the mouse', async ({ page }) => {
+  await warmRoutes(page)
+  await createRoom(page, testRoomName('modes-enter'), uniqueName('Host'))
+  await startPlaying(page)
+  await waitForPlayable(page)
+
+  await page.getByRole('radio', { name: '6' }).click()
+  await waitForPlayable(page)
+  await page.keyboard.type('planet')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('main').locator('.bg-correct, .bg-present, .bg-absent')).toHaveCount(6)
+})

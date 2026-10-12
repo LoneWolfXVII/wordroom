@@ -27,6 +27,7 @@ export { Tile, type TileProps } from './components/tile'
 export { isGuessListReady, loadGuessList, preloadGuessList } from './guess-list'
 export { usePhysicalKeyboard } from './hooks'
 export { accumulateKeyStates, type KeyStates } from './keys'
+export { readModePreference, writeModePreference } from './mode-preference'
 export {
   lettersShareWarning,
   SHARE_HOST,

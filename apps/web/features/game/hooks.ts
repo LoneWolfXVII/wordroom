@@ -35,8 +35,12 @@ export function usePhysicalKeyboard(onKey: (key: KeyValue) => void, enabled: boo
 
       if (event.key === 'Enter') {
         // A focused button already turns Enter into a click. Handling it here
-        // as well would submit the same guess twice.
-        if ((target?.closest('button') ?? null) !== null) return
+        // as well would submit the same guess twice — except the game switcher.
+        // Clicking a length leaves focus on it, and a player who then types a
+        // word expects Enter to submit it, not to re-pick the length they are
+        // already on.
+        const button = target?.closest('button') ?? null
+        if (button !== null && button.getAttribute('role') !== 'radio') return
         event.preventDefault()
         handler.current(ENTER_KEY)
         return

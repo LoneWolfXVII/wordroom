@@ -24,7 +24,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Icon, Screen, TileArt } from '@/components/ui'
 import { HomeIcon } from '@/components/ui/icons'
 import { FourResultSheet, FourScreen, useFourStore } from '@/features/four'
-import { createGameApi, GameScreen, useGameStore } from '@/features/game'
+import { createGameApi, GameScreen, readModePreference, useGameStore } from '@/features/game'
 import { createLeaderboardSource, LeaderboardSheet, useRankDelta } from '@/features/leaderboard'
 import { RoomSheet, SaveProgressNudge, useActiveSeat } from '@/features/rooms'
 import {
@@ -105,9 +105,12 @@ export function GameRoute() {
 
   useEffect(() => {
     if (!seat || !api) return
+    // Open on the game the player last picked, so a reload comes back to it.
+    const preferred = readModePreference()
     configure({
       room: { id: seat.room.id, name: seat.room.name, code: seat.room.code },
       api,
+      ...(preferred === null ? {} : { mode: preferred }),
     })
   }, [seat, api, configure])
 

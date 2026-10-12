@@ -18,6 +18,7 @@ test('keyboard focus is visible', async ({ page }) => {
     const style = getComputedStyle(element)
     return {
       tag: element.tagName,
+      background: style.backgroundColor,
       style: style.outlineStyle,
       width: style.outlineWidth,
       color: style.outlineColor,
@@ -28,8 +29,15 @@ test('keyboard focus is visible', async ({ page }) => {
   expect(ring, 'nothing took focus on Tab').not.toBeNull()
   expect(ring?.style).toBe('solid')
   expect(ring?.width).toBe('2px')
-  expect(ring?.color).toBe('rgb(47, 93, 98)')
-  expect(ring?.offset).toBe('2px')
+  // Except on an accent surface — the home screen's room card, first in the tab
+  // order once the account holds a room — where an accent ring would vanish,
+  // so that card draws an on-accent ring inset instead.
+  if (ring?.background === 'rgb(47, 93, 98)') {
+    expect(ring.color).toBe('rgb(245, 241, 234)')
+  } else {
+    expect(ring?.color).toBe('rgb(47, 93, 98)')
+    expect(ring?.offset).toBe('2px')
+  }
 })
 
 test('a sheet traps focus and closes on Escape', async ({ page }) => {

@@ -13,6 +13,7 @@ import { create } from 'zustand'
 import { type GameApi, GameApiError, type GuessResult, getGameApi } from './api'
 import { isKnownWord, preloadGuessList } from './guess-list'
 import { accumulateKeyStates, type KeyStates, mergeKeyState } from './keys'
+import { writeModePreference } from './mode-preference'
 import { prefersReducedMotion, STRUCT_MS, wait } from './motion'
 import { clearPrefetched, prefetchPuzzle, takePrefetched } from './prefetch'
 
@@ -497,7 +498,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
       // Four at once has its own store and screen. The switcher lives here, so
       // the mode does too, but there is no single-board puzzle to load for it,
       // and the one on hold is what coming back should find.
-      if (mode === FOUR) {
+      writeModePreference(mode)
+      // No single-board puzzle loaded yet (the visit opened on Four): the route
+      // resumes the player where they were, rather than this opening No. 1.
+      if (mode === FOUR || state.puzzle === null) {
         set({ mode })
         return
       }

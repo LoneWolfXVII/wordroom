@@ -39,7 +39,15 @@ test('a Four at once game, start to finish', async ({ page }) => {
     ),
   ).toHaveCount(0)
 
-  for (const word of GUESSES) {
+  // A reload comes back to Four, on the same game, with the row it took.
+  await page.keyboard.type('crane')
+  await page.keyboard.press('Enter')
+  await expect(page.locator(SCORED)).toHaveCount(20)
+  await page.reload()
+  await expect(page.locator('[data-board]')).toHaveCount(4)
+  await expect(page.locator(SCORED)).toHaveCount(20)
+
+  for (const word of GUESSES.slice(1)) {
     const scored = await page.locator(SCORED).count()
     await page.keyboard.type(word)
     await page.keyboard.press('Enter')
