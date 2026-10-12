@@ -19,12 +19,15 @@ export { fetchWaitStatus, isHeld, listNames, type Pace, type WaitStatus } from '
 // channel on `room_rounds` if that ever shows up in the database's load.
 const POLL_MS = 4000
 
-/** The room's pace and open round for one mode, refreshed while `enabled`. */
+/**
+ * The room's pace and open round for one mode: read once per room and mode,
+ * then every few seconds while `polling`.
+ */
 export function useWaitStatus(
   client: SupabaseClient | null,
   roomId: string | null,
   mode: Mode,
-  enabled: boolean,
+  polling: boolean,
 ) {
   // Keyed, so switching mode never shows the last mode's round for a moment.
   const key = `${roomId}:${mode}`
@@ -43,11 +46,15 @@ export function useWaitStatus(
   const status = state?.key === key ? state.status : null
 
   useEffect(() => {
-    if (!enabled) return
+    void refresh()
+  }, [refresh])
+
+  useEffect(() => {
+    if (!polling) return
     void refresh()
     const timer = setInterval(() => void refresh(), POLL_MS)
     return () => clearInterval(timer)
-  }, [enabled, refresh])
+  }, [polling, refresh])
 
   return { status, refresh }
 }

@@ -141,6 +141,11 @@ export function FourScreen({
           </div>
           {waiting}
         </div>
+      ) : game === null && waiting !== undefined ? (
+        // Arrived (or reloaded) while the room is still on the last game.
+        <div className="flex min-h-[calc(var(--key-height)*3+28px)] flex-none flex-col justify-center pb-2.5">
+          {waiting}
+        </div>
       ) : (
         <Keyboard
           keyStates={{}}

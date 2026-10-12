@@ -34,8 +34,19 @@ begin
    where room_id = '10000000-0000-0000-0000-0000000000a1' and mode = 5 and number = p_number;
   assert not public.submit_guess(v_id, v_answer) ? 'error', 'the solve went through';
 end $$;
-grant execute on function pg_temp.as_player(text), pg_temp.get(int), pg_temp.solve(int)
-  to authenticated;
+-- A wrong guess, to start an attempt without finishing it.
+create function pg_temp.miss(p_number int) returns void language plpgsql security definer as $$
+declare v_id uuid; v_word text;
+begin
+  select id into v_id from public.puzzles
+   where room_id = '10000000-0000-0000-0000-0000000000a1' and mode = 5 and number = p_number;
+  select g.word into v_word from public.guess_bank g
+   where g.len = 5 and g.word <> (select answer from public.puzzles where id = v_id)
+   order by g.word limit 1;
+  assert not public.submit_guess(v_id, v_word) ? 'error', 'the miss went through';
+end $$;
+grant execute on function pg_temp.as_player(text), pg_temp.get(int), pg_temp.solve(int),
+  pg_temp.miss(int) to authenticated;
 
 set local role authenticated;
 
@@ -130,6 +141,37 @@ do $$ begin
   assert (public.wait_status('10000000-0000-0000-0000-0000000000a1', 5)) -> 'round' = 'null',
     'and no round opened at 99';
 end $$;
+
+-- Switched back to Wait with players spread out (Speedrun took the room to
+-- No. 6): the round opens at the front, so nobody ahead is held back.
+do $$ begin
+  perform pg_temp.as_player('00000000-0000-0000-0000-0000000000b1');
+  assert pg_temp.get(5) ? 'puzzle', 'Ben, behind, catches up';
+  perform pg_temp.as_player('00000000-0000-0000-0000-0000000000a1');
+  perform pg_temp.miss(6);
+  assert pg_temp.get(7) ? 'puzzle', 'Ana, ahead, is not held behind Ben';
+end $$;
+
+-- A puzzle someone has started is never locked, even behind a stale round.
+reset role;
+update public.room_rounds set ended_at = now()
+ where room_id = '10000000-0000-0000-0000-0000000000a1' and mode = 5 and ended_at is null;
+insert into public.room_rounds (room_id, mode, number)
+values ('10000000-0000-0000-0000-0000000000a1', 5, 5);
+set local role authenticated;
+do $$ begin
+  perform pg_temp.as_player('00000000-0000-0000-0000-0000000000a1');
+  assert pg_temp.get(6) ? 'puzzle', 'Ana gets back into the puzzle she started';
+end $$;
+
+-- The old get-puzzle Edge Function creates puzzles through materialise_puzzle,
+-- which knows nothing of rounds: in a Wait room it refuses.
+reset role;
+do $$ begin
+  assert public.materialise_puzzle('10000000-0000-0000-0000-0000000000a1', 5, 7, 0) is null,
+    'no puzzle past the round through the old path';
+end $$;
+set local role authenticated;
 
 -- Four at once has rounds of its own.
 do $$ begin

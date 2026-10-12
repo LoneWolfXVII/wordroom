@@ -96,6 +96,12 @@ export interface GameState {
   /** Bumped every time the active row should shake. */
   shakeToken: number
   boardPhase: BoardPhase
+  /**
+   * Fetch the next puzzle the moment an attempt ends. Off in a Wait room:
+   * asking for it signs the player up for that round, and the room would then
+   * wait for someone who only glanced at their result.
+   */
+  prefetchNext: boolean
 
   attemptId: string | null
   /** The word. Non-null only after the attempt is solved, failed or timed out. */
@@ -177,6 +183,7 @@ const initialState: GameState = {
   bounceRow: null,
   shakeToken: 0,
   boardPhase: 'idle',
+  prefetchNext: true,
   attemptId: null,
   revealedWord: null,
   points: null,
@@ -234,8 +241,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
    * reached.
    */
   const queueNextPuzzle = (read: () => GameStore): void => {
-    const { room, puzzle, mode } = read()
-    if (room === null || puzzle === null) return
+    const { room, puzzle, mode, prefetchNext } = read()
+    if (room === null || puzzle === null || !prefetchNext) return
     prefetchPuzzle(transport(), { roomId: room.id, mode, number: puzzle.number + 1 })
   }
 
@@ -322,7 +329,12 @@ export const useGameStore = create<GameStore>()((set, get) => {
       } catch (error) {
         // A failed load leaves the puzzle on screen as it was — a refused
         // "Next" keeps its finished board and buttons rather than a dead one.
-        set(get().puzzle === null ? { status: 'idle' } : before)
+        // A switch to Four while it was in flight still wins, as on success.
+        set(
+          get().puzzle === null
+            ? { status: 'idle' }
+            : { status: before.status, mode: get().mode === FOUR ? FOUR : before.mode },
+        )
         get().notify(messageFor(error))
       }
     },

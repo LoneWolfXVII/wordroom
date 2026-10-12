@@ -1,9 +1,11 @@
+import type { Page } from '@playwright/test'
 import {
   createRoom,
   expectPuzzleNumber,
   joinRoom,
   newPlayerPage,
   playGuess,
+  resultSheet,
   startPlaying,
   uniqueName,
   waitForResult,
@@ -17,12 +19,7 @@ requiresSupabase()
  * Wait mode, with two browsers: the host finishes first and waits for the
  * friend by name; the friend finishes and both go on together.
  */
-test('in Wait mode the room moves on together', async ({
-  browser,
-  friendSession,
-  page,
-  probe,
-}) => {
+test('in Wait mode the room moves on together', async ({ browser, friendSession, page, probe }) => {
   await warmRoutes(page)
   const roomName = testRoomName('wait')
   const code = await createRoom(page, roomName, uniqueName('Host'))
@@ -64,7 +61,24 @@ test('in Wait mode the room moves on together', async ({
     await friendResult.getByRole('button', { name: 'Next puzzle' }).click()
     await expectPuzzleNumber(page, 2)
     await expectPuzzleNumber(friend, 2)
+
+    // Held on arrival: the host finishes No. 2 and reloads. The note stands
+    // in for the keyboard, and No. 3 opens once the friend is done.
+    await finish(page)
+    await page.reload()
+    await expect(page.getByText(`Waiting for ${friendName}`)).toBeVisible()
+    await finish(friend)
+    await expectPuzzleNumber(page, 3)
   } finally {
     await friend.context().close()
   }
 })
+
+/** Play to the end of the puzzle, solved or not, without knowing the word. */
+async function finish(page: Page): Promise<void> {
+  for (const word of ['crane', 'sloth', 'pudgy', 'mince', 'brawl', 'fight']) {
+    await playGuess(page, word)
+    if (await resultSheet(page).isVisible()) break
+  }
+  await waitForResult(page)
+}

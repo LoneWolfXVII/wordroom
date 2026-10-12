@@ -113,12 +113,16 @@ $$;
 --
 -- Called by `get_puzzle` and `get_four` after membership and the sequence
 -- check, so a request that will be refused anyway never opens a round.
+-- `p_reached` is the highest number the room has materialised in this mode
+-- (a game number for Four): a new round opens at the front of the room, never
+-- behind someone who is already further on.
 -- ---------------------------------------------------------------------------
 create or replace function public.round_gate(
   p_room_id   uuid,
   p_player_id uuid,
   p_mode      int,
-  p_number    int
+  p_number    int,
+  p_reached   int
 )
 returns jsonb
 language plpgsql
@@ -138,6 +142,18 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('round:' || p_room_id || ':' || p_mode, 0));
   perform public.round_try_end(p_room_id, p_mode);
 
+  -- A puzzle this player has already started is theirs to finish, whatever
+  -- the round: a reload mid-puzzle never locks them out of it.
+  if exists (
+    select 1 from public.attempts a
+      join public.puzzles pz on pz.id = a.puzzle_id
+     where a.player_id = p_player_id and pz.room_id = p_room_id and pz.mode = p_mode
+       and pz.number between case when p_mode = 4 then 4 * (p_number - 1) + 1 else p_number end
+                         and case when p_mode = 4 then 4 * p_number else p_number end
+  ) then
+    return null;
+  end if;
+
   select number into v_open from public.room_rounds
    where room_id = p_room_id and mode = p_mode and ended_at is null;
 
@@ -148,8 +164,10 @@ begin
     if p_number <= v_last then
       return null;
     end if;
-    insert into public.room_rounds (room_id, mode, number) values (p_room_id, p_mode, p_number);
-    v_open := p_number;
+    -- The front of the room: the furthest anyone has got, or the puzzle after
+    -- the last round when nobody has gone past it.
+    v_open := greatest(p_reached, v_last + 1);
+    insert into public.room_rounds (room_id, mode, number) values (p_room_id, p_mode, v_open);
   end if;
 
   if p_number < v_open then
@@ -175,7 +193,7 @@ $$;
 
 revoke all on function public.round_unfinished(uuid, int, int) from public, anon, authenticated;
 revoke all on function public.round_try_end(uuid, int)          from public, anon, authenticated;
-revoke all on function public.round_gate(uuid, uuid, int, int)  from public, anon, authenticated;
+revoke all on function public.round_gate(uuid, uuid, int, int, int) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- wait_status — what the waiting screen shows. Ends the round if it is over,
@@ -246,6 +264,10 @@ begin
       'code', 'not_host', 'message', 'Only the host can change the pace.'));
   end if;
 
+  -- Taken in the order `round_gate` takes them, so a gate mid-decision cannot
+  -- leave a round open behind a switch to Speedrun.
+  perform pg_advisory_xact_lock(hashtextextended('round:' || p_room_id || ':' || m, 0))
+     from unnest(array[4, 5, 6, 7]) m;
   update public.rooms set pace = p_pace where id = p_room_id;
   -- Speedrun has no rounds: everyone waiting can go on at once.
   if p_pace = 'speedrun' then
@@ -273,6 +295,7 @@ begin
       'code', 'not_host', 'message', 'Only the host can skip.'));
   end if;
 
+  perform pg_advisory_xact_lock(hashtextextended('round:' || p_room_id || ':' || p_mode, 0));
   update public.room_rounds set ended_at = now()
    where room_id = p_room_id and mode = p_mode and ended_at is null;
   return jsonb_build_object('skipped', true);
@@ -358,7 +381,7 @@ begin
     from public.players pl
    where pl.room_id = v_room.id and pl.auth_user_id = v_user;
 
-  v_gate := public.round_gate(v_room.id, v_player, p_mode, p_number);
+  v_gate := public.round_gate(v_room.id, v_player, p_mode, p_number, v_reached);
   if v_gate is not null then
     return v_gate;
   end if;
@@ -485,7 +508,7 @@ begin
       'details', jsonb_build_object('reached', v_reached, 'next', v_reached + 1)));
   end if;
 
-  v_gate := public.round_gate(v_room.id, v_player.id, 4, p_number);
+  v_gate := public.round_gate(v_room.id, v_player.id, 4, p_number, v_reached);
   if v_gate is not null then
     return v_gate;
   end if;
@@ -525,3 +548,58 @@ exception
       'code', 'internal', 'message', 'Something went wrong. Try again.'));
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- The `get-puzzle` Edge Function predates `get_puzzle` and no longer serves the
+-- app, but it is still deployed and creates puzzles through this function. It
+-- knows nothing of rounds, so in a Wait room it would hand out the next puzzle
+-- early. It returns null here, which the function reports as a refusal.
+-- ---------------------------------------------------------------------------
+create or replace function public.materialise_puzzle(
+  p_room_id uuid,
+  p_mode    int,
+  p_number  int,
+  p_index   int
+)
+returns jsonb
+language plpgsql
+volatile
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_answer text;
+  v_row    public.puzzles%rowtype;
+begin
+  if (select pace from public.rooms where id = p_room_id) = 'wait' then
+    return null;
+  end if;
+  -- `rank` is unique within a length; ordering by word as well keeps the
+  -- sequence stable even if a future seed ever repeats a rank. Mirrors the
+  -- order the TypeScript used.
+  select wb.word into v_answer
+    from public.word_bank wb
+   where wb.len = p_mode
+   order by wb.rank, wb.word
+   offset p_index
+   limit 1;
+
+  if v_answer is null then
+    return null;
+  end if;
+
+  insert into public.puzzles (room_id, mode, number, answer)
+  values (p_room_id, p_mode, p_number, v_answer)
+  on conflict (room_id, mode, number) do nothing
+  returning * into v_row;
+
+  if v_row.id is null then
+    select * into v_row
+      from public.puzzles
+     where room_id = p_room_id and mode = p_mode and number = p_number;
+  end if;
+
+  return to_jsonb(v_row);
+end;
+$$;
+

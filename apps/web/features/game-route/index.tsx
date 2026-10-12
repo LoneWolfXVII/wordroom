@@ -137,6 +137,8 @@ export function GameRoute() {
   // finishing the one before it. Loaded as soon as the round ends.
   // Kept with its mode, so switching games drops it.
   const [heldAt, setHeldAt] = useState<{ mode: Mode; number: number } | null>(null)
+  // Dropped on a switch, so coming back cannot race the switch's own load.
+  if (heldAt !== null && heldAt.mode !== mode) setHeldAt(null)
   const held = heldAt?.mode === mode ? heldAt.number : null
 
   useEffect(() => {
@@ -196,12 +198,18 @@ export function GameRoute() {
     mode === FOUR
       ? fourStatus === 'won' || fourStatus === 'over'
       : status === 'solved' || status === 'failed'
-  const wait = useWaitStatus(
-    client,
-    seat?.room.id ?? null,
-    mode,
-    Boolean(seat) && (finished || held !== null || roomOpen),
-  )
+  // Polls only where it can change something: a Wait room with a finished
+  // puzzle or a held arrival, or the open room sheet.
+  const [pollWait, setPollWait] = useState(false)
+  const wait = useWaitStatus(client, seat?.room.id ?? null, mode, Boolean(seat) && pollWait)
+  const inWait = wait.status?.pace === 'wait'
+  useEffect(() => {
+    setPollWait(roomOpen || (inWait && (finished || held !== null)))
+  }, [roomOpen, inWait, finished, held])
+  useEffect(() => {
+    // Unknown counts as Wait: a prefetch in a Wait room signs the player up.
+    useGameStore.setState({ prefetchNext: wait.status?.pace === 'speedrun' })
+  }, [wait.status])
   const nextNumber = held ?? (finished && onNumber !== null ? onNumber + 1 : null)
   const holding = nextNumber !== null && isHeld(wait.status, nextNumber)
 
