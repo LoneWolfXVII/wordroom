@@ -1,12 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   decodeMarks,
+  FOUR,
+  FOUR_BOARDS,
   type LeaderboardRow,
   type MarkRow,
   type Mode,
   type StatAttempt,
 } from '@wordroom/shared'
 import { ATTEMPT_PUBLIC_SELECT, forbiddenColumns, narrowAttempt } from './answer-free'
+import { type FourAttemptRow, fourProgress } from './four-progress'
 import type {
   BoardQuery,
   LeaderboardSource,
@@ -62,7 +65,7 @@ function readNullableNumber(value: unknown): number | null {
 
 function readMode(value: unknown, fallback: Mode): Mode {
   const parsed = readNumber(value)
-  return parsed === 5 || parsed === 6 || parsed === 7 ? parsed : fallback
+  return parsed === 4 || parsed === 5 || parsed === 6 || parsed === 7 ? parsed : fallback
 }
 
 /**
@@ -102,6 +105,62 @@ export function createLeaderboardSource(client: SupabaseClient): LeaderboardSour
     return id === '' ? null : id
   }
 
+  /**
+   * Four at once game N is the room's mode-4 puzzles 4(N-1)+1 .. 4N, one per
+   * board. Read through the same answer-free projection as a single puzzle.
+   */
+  async function fetchFourProgress(query: PuzzleQuery): Promise<PuzzleProgress[]> {
+    const first = FOUR_BOARDS * (query.number - 1) + 1
+    const { data: puzzles, error } = await client
+      .from('room_puzzles')
+      .select('id, number')
+      .eq('room_id', query.roomId)
+      .eq('mode', FOUR)
+      .gte('number', first)
+      .lt('number', first + FOUR_BOARDS)
+
+    if (error) throw new Error(error.message)
+    const boards = new Map<string, number>()
+    for (const row of (Array.isArray(puzzles) ? puzzles : []) as unknown[]) {
+      const record = asRecord(row)
+      boards.set(readString(record.id), readNumber(record.number) - first + 1)
+    }
+    if (boards.size === 0) return []
+
+    const { data, error: attemptsError } = await client
+      .from('attempts')
+      .select(ATTEMPT_PUBLIC_SELECT)
+      .in('puzzle_id', [...boards.keys()])
+
+    if (attemptsError) throw new Error(attemptsError.message)
+    const rows: unknown[] = Array.isArray(data) ? data : []
+    return fourProgress(
+      rows.map((row) => narrowAttempt(row) as FourAttemptRow),
+      boards,
+    )
+  }
+
+  /** One stats row per finished Four game, from the game-level view. */
+  async function fetchFourStats(query: StatsQuery): Promise<StatAttempt[]> {
+    const { data, error } = await client
+      .from('four_games')
+      .select('number, boards_solved, guesses')
+      .eq('room_id', query.roomId)
+      .eq('player_id', query.playerId)
+
+    if (error) throw new Error(error.message)
+    const rows: unknown[] = Array.isArray(data) ? data : []
+    return rows.map((row) => {
+      const record = asRecord(row)
+      return {
+        mode: FOUR,
+        number: readNumber(record.number),
+        solved: readNumber(record.boards_solved) === FOUR_BOARDS,
+        guessCount: readNumber(record.guesses),
+      }
+    })
+  }
+
   return {
     async fetchBoard(query: BoardQuery): Promise<LeaderboardRow[]> {
       const { data, error } = await client
@@ -133,6 +192,7 @@ export function createLeaderboardSource(client: SupabaseClient): LeaderboardSour
     },
 
     async fetchPuzzleProgress(query: PuzzleQuery): Promise<PuzzleProgress[]> {
+      if (query.mode === FOUR) return fetchFourProgress(query)
       const id = await puzzleId(query)
       if (id === null) return []
 
@@ -156,6 +216,7 @@ export function createLeaderboardSource(client: SupabaseClient): LeaderboardSour
     },
 
     async fetchStatAttempts(query: StatsQuery): Promise<StatAttempt[]> {
+      if (query.mode === FOUR) return fetchFourStats(query)
       // `mode` and `number` come from the embedded puzzle. `answer` is not in
       // the column grant, so the embed cannot name it and `select` never does.
       const { data, error } = await client

@@ -80,7 +80,7 @@ export function LeaderboardSheet({
       open={open}
       onOpenChange={onOpenChange}
       title="Leaderboard"
-      description={`${mode} letters`}
+      description={mode === 4 ? 'Four at once' : `${mode} letters`}
       action={
         tab === 'board' ? (
           <SegmentedControl
@@ -105,8 +105,10 @@ export function LeaderboardSheet({
         <>
           <LeaderboardList entries={board.entries} loading={board.loading} />
           <p className="mt-3.5 text-[13px] text-muted leading-[1.4]">
-            Points: 6 for a first-guess solve, down to 1 for a sixth. Time only breaks ties. Resets
-            Monday.
+            {mode === 4
+              ? 'Points: each board scores 9 if solved on the first guess, down to 1 on the ninth.'
+              : 'Points: 6 for a first-guess solve, down to 1 for a sixth.'}{' '}
+            Time only breaks ties. Resets Monday.
           </p>
           {board.error === null ? null : (
             <p className="mt-2 text-[13px] text-danger leading-[1.4]">{board.error}</p>

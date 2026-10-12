@@ -29,6 +29,8 @@ export interface PuzzleProgress {
   playerId: string
   grid: readonly MarkRow[]
   status: PuzzleStatus
+  /** Four at once only: per board, the guess that solved it, or null. */
+  solvedAt?: readonly (number | null)[]
 }
 
 /** A board row plus the colour grid shown beside it. */
